@@ -275,17 +275,23 @@ sensor:
       float t2 = id(temp_amp).state;
       float t3 = id(temp_psu).state;
       float t4 = id(rp2354_temperature).state;
+      float t5 = id(temp_amp_uart).state; // <-- HIER: Die internen MA-Temperaturen vom RP!
+
       if (isnan(t1)) t1 = 0;
       if (isnan(t2)) t2 = 0;
       if (isnan(t3)) t3 = 0;
       if (isnan(t4)) t4 = 0;
-      return std::max({t1, t2, t3, t4});
+      if (isnan(t5)) t5 = 0;
+
+      return std::max({t1, t2, t3, t4, t5});
     on_value:
       - lambda: |-
           // Calculate perfect fan curve
           float hottest = x;
           int fan_speed_cmd = 0;
-          if (hottest > 70.0) {
+          if (hottest >= 80.0) {       // <-- Kleine Anpassung: 85°C vom Amp triggert direkt 100%
+            fan_speed_cmd = 100;
+          } else if (hottest > 70.0) {
             fan_speed_cmd = 100;
           } else if (hottest > 60.0) {
             fan_speed_cmd = 60;
