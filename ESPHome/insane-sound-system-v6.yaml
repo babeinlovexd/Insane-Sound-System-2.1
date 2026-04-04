@@ -318,6 +318,9 @@ binary_sensor:
             - globals.set:
                 id: current_action_symbol
                 value: '">"'
+            - uart.write:
+                id: uart_rp2354
+                data: "MUTE:0\n"
           else:
             - globals.set:
                 id: is_muted
@@ -325,6 +328,13 @@ binary_sensor:
             - globals.set:
                 id: current_action_symbol
                 value: '"||"'
+            - uart.write:
+                id: uart_rp2354
+                data: "MUTE:1\n"
+      - homeassistant.service:
+          service: media_player.media_play_pause
+          data:
+            entity_id: ${ha_player_id}
       - script.execute: timer_action
 
 sensor:
@@ -340,6 +350,15 @@ sensor:
       - globals.set:
           id: ui_mode
           value: '1'
+      - lambda: |-
+          char buf[20];
+          sprintf(buf, "VOL:%.0f\n", x);
+          id(uart_rp2354).write_str(buf);
+      - homeassistant.service:
+          service: media_player.volume_set
+          data:
+            entity_id: ${ha_player_id}
+            volume_level: !lambda "return x / 100.0;"
       - script.execute: timer_volume
 
 # SPI Bus for Display
@@ -518,10 +537,35 @@ text_sensor:
     id: dsp_active_source
     name: "Active Audio Source"
 
+  - platform: homeassistant
+    id: ha_player_state_bridge
+    entity_id: ${ha_player_id}
+    internal: true
+    on_value:
+      - if:
+          condition:
+            lambda: 'return id(dsp_active_source).state == "WLAN (S3)" || id(dsp_active_source).state == "WLAN";'
+          then:
+            - if:
+                condition:
+                  lambda: 'return x == "playing";'
+                then:
+                  - text_sensor.template.publish:
+                      id: stream_status
+                      state: "playing"
+                  - globals.set:
+                      id: display_awake
+                      value: 'true'
+                else:
+                  - text_sensor.template.publish:
+                      id: stream_status
+                      state: "idle"
+                  - script.execute: timer_sleep
+
   - platform: template
     id: stream_status
     name: "Stream Status"
-    # Handled entirely by the UART reader and Home Assistant bridges
+    # Handled by UART reader (BT) and Home Assistant bridges (WLAN)
 
 # Custom Component to read lines from UART and populate sensors
 custom_component:

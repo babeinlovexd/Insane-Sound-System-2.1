@@ -344,6 +344,33 @@ void loop() {
             tempPsu = cmd.substring(secondColon + 1).toFloat();
         }
     }
+    // Check for volume override from UI (Format: "VOL:x")
+    else if (cmd.startsWith("VOL:")) {
+        int vol = cmd.substring(4).toInt();
+        uint8_t amp_addresses[2] = {0x20, 0x21};
+        // Map 0-100 to volume register
+        // On MA12070P, 0x18 is 0dB (max), 0x00 is -100dB (min)
+        // Adjust the scaling to match exactly your desired register mappings.
+        // For example, mapping 0-100 linearly to 0x00 to 0x18:
+        uint8_t regVol = (uint8_t)((vol / 100.0) * 0x18);
+        for (int i = 0; i < 2; i++) {
+            Wire.beginTransmission(amp_addresses[i]);
+            Wire.write(0x2C);
+            Wire.write(regVol);
+            Wire.endTransmission();
+        }
+    }
+    // Check for mute toggle from UI (Format: "MUTE:x")
+    else if (cmd.startsWith("MUTE:")) {
+        int mute = cmd.substring(5).toInt();
+        uint8_t amp_addresses[2] = {0x20, 0x21};
+        for (int i = 0; i < 2; i++) {
+            Wire.beginTransmission(amp_addresses[i]);
+            Wire.write(0x2E);
+            Wire.write(mute ? 0x01 : 0x00); // 0x01 = Soft Mute Enabled
+            Wire.endTransmission();
+        }
+    }
   }
   
   // Prio 2 (S/PDIF detection)
