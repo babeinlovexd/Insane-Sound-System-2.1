@@ -49,8 +49,9 @@ def get_firmware_path():
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-FIRMWARE_URL = "https://raw.githubusercontent.com/babeinlovexd/Insane-Sound-System/main/Firmware/insane_bl_v5.ino.merged.bin"
-GITHUB_URL = "https://github.com/babeinlovexd"
+# Default URLs; dynamically resolved via GitHub API where possible.
+GITHUB_API_LATEST = "https://api.github.com/repos/babeinlovexd/Insane-Sound-System/releases/latest"
+GITHUB_URL = "https://github.com/babeinlovexd/Insane-Sound-System"
 UPDATE_CHECK_INTERVAL = 3600 # Sekunden
 
 class DeviceListener:
@@ -480,14 +481,15 @@ class InsaneFlasher(ctk.CTk):
         if current_time - self.last_update_check > UPDATE_CHECK_INTERVAL:
             self.last_update_check = current_time
             try:
-                VERSION_URL = "https://raw.githubusercontent.com/babeinlovexd/Insane-Sound-System/main/Firmware/version.txt"
-                self.online_version = requests.get(VERSION_URL, timeout=3).text.strip()
+                # Fetch latest release info
+                release_info = requests.get(GITHUB_API_LATEST, timeout=3).json()
+                self.online_version = release_info.get("tag_name", "V6.0.0")
+                # Look for specific assets if you like, else we will fall back to static logic for now.
+                self.github_assets = release_info.get("assets", [])
             except:
                 self.online_version = None
 
-        # UI Update triggern (jetzt mit bl_version als Argument)
         self.after(0, self._update_dashboard_ui, src, sys_status, t_amp, t_esp, t_dsp, bl_stat, bl_song, bl_art, fan, fault, wifi, bt_conn, bl_version, rp_version)
-        # Versions-Check für den Button
         self.after(0, lambda: self.check_for_updates(bl_version, rp_version))
 
     def _update_dashboard_ui(self, src, sys_status, t_amp, t_esp, t_dsp, bl_stat, bl_song, bl_art, fan, fault, wifi, bt_conn, bl_version, rp_version):
@@ -549,9 +551,23 @@ class InsaneFlasher(ctk.CTk):
         
         try:
             self.after(0, lambda: status_lbl.configure(text="Schritt 0: Lade Firmware von GitHub...", text_color="orange"))
-            # Depending on target, load correct firmware URL.
-            # In real system, these would differ.
-            r = requests.get(FIRMWARE_URL, timeout=15)
+
+            download_url = None
+            if hasattr(self, 'github_assets') and self.github_assets:
+                # Try to find target specific binary in the release assets
+                for asset in self.github_assets:
+                    if target.lower() in asset['name'].lower():
+                        download_url = asset['browser_download_url']
+                        break
+
+            if not download_url:
+                # Fallback static URLs if release API fails or no match
+                if target == "wroom":
+                    download_url = "https://raw.githubusercontent.com/babeinlovexd/Insane-Sound-System/main/Firmware/WROOM32D/firmware.bin"
+                else:
+                    download_url = "https://raw.githubusercontent.com/babeinlovexd/Insane-Sound-System/main/Firmware/RP2354A/firmware.bin"
+
+            r = requests.get(download_url, timeout=15)
             r.raise_for_status()
             with open(get_firmware_path(), "wb") as f: 
                 f.write(r.content)
@@ -585,6 +601,12 @@ class InsaneFlasher(ctk.CTk):
                 self.after(0, lambda: status_lbl.configure(text="Schritt 3: WROOM Neustart...", text_color="orange"))
                 requests.post(f"http://{ip}/button/wroom_normal_boot/press", timeout=5)
 
+                # INJECTION: Post version to ESPHome template text sensor
+                if self.online_version:
+                    self.after(0, lambda: status_lbl.configure(text="Schritt 4: Version Injection...", text_color="orange"))
+                    try: requests.post(f"http://{ip}/text/bl_firmware_version/set?value={self.online_version}", timeout=3)
+                    except: pass
+
             elif target == "rp2354":
                 self.after(0, lambda: status_lbl.configure(text="Schritt 1: Setze RP2354 in Flash-Modus...", text_color="orange"))
                 requests.post(f"http://{ip}/button/rp2354_flash_mode/press", timeout=5)
@@ -606,6 +628,12 @@ class InsaneFlasher(ctk.CTk):
 
                 self.after(0, lambda: status_lbl.configure(text="Schritt 3: RP2354 geflasht. Reboot.", text_color="orange"))
                 requests.post(f"http://{ip}/button/rp2354_normal_boot/press", timeout=5)
+
+                # INJECTION: Post version to ESPHome template text sensor
+                if self.online_version:
+                    self.after(0, lambda: status_lbl.configure(text="Schritt 4: Version Injection...", text_color="orange"))
+                    try: requests.post(f"http://{ip}/text/rp2354_firmware_version/set?value={self.online_version}", timeout=3)
+                    except: pass
             
             self.after(0, lambda: status_lbl.configure(text="🚀 Update 100% erfolgreich!", text_color="#2ecc71"))
             self.after(0, lambda: messagebox.showinfo("Update", f"{target.upper()} wurde erfolgreich aktualisiert!"))

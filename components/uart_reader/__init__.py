@@ -22,8 +22,6 @@ CONF_SYS_STAT = "sys_stat"
 CONF_ALBUM = "album_sensor"
 CONF_BT_CONN = "bt_conn_sensor"
 CONF_BT_VOL = "bt_vol_sensor"
-CONF_WROOM_VER = "wroom_ver_sensor"
-CONF_RP_VER = "rp_ver_sensor"
 CONF_IS_FLASHING = "is_flashing"
 
 CONFIG_SCHEMA = cv.Schema(
@@ -40,8 +38,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_SYS_STAT): cv.use_id(text_sensor.TextSensor),
         cv.Optional(CONF_BT_CONN): cv.use_id(binary_sensor.BinarySensor),
         cv.Optional(CONF_BT_VOL): cv.use_id(sensor.Sensor),
-        cv.Optional(CONF_WROOM_VER): cv.use_id(text_sensor.TextSensor),
-        cv.Optional(CONF_RP_VER): cv.use_id(text_sensor.TextSensor),
         cv.Optional(CONF_IS_FLASHING): cv.use_id(cg.GlobalVariable),
     }
 ).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
@@ -58,8 +54,6 @@ async def to_code(config):
     sys_stat = await cg.get_variable(config[CONF_SYS_STAT]) if CONF_SYS_STAT in config else cg.nullptr
     bt_conn = await cg.get_variable(config[CONF_BT_CONN]) if CONF_BT_CONN in config else cg.nullptr
     bt_vol = await cg.get_variable(config[CONF_BT_VOL]) if CONF_BT_VOL in config else cg.nullptr
-    wroom_ver = await cg.get_variable(config[CONF_WROOM_VER]) if CONF_WROOM_VER in config else cg.nullptr
-    rp_ver = await cg.get_variable(config[CONF_RP_VER]) if CONF_RP_VER in config else cg.nullptr
 
     is_flashing = cg.nullptr
     if CONF_IS_FLASHING in config:
@@ -70,7 +64,7 @@ async def to_code(config):
 
     var = cg.new_Pvariable(
         config[CONF_ID],
-        parent, track, artist, album, status, temp, fan, fault, stream, sys_stat, bt_conn, bt_vol, wroom_ver, rp_ver, is_flashing
+        parent, track, artist, album, status, temp, fan, fault, stream, sys_stat, bt_conn, bt_vol, is_flashing
     )
 
     await cg.register_component(var, config)

@@ -118,8 +118,6 @@ void loop() {
       // Map 0-100% back to 0-127
       int bt_vol = (int)((vol_pct / 100.0) * 127.0);
       a2dp_sink.set_volume(bt_vol);
-    } else if (cmd == "GET_VER") {
-      Serial2.printf("WROOM_VER:V6.0.0\n");
     }
   }
 
