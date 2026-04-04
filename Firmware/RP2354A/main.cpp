@@ -7,6 +7,7 @@
 #include "i2s_slave.h"
 #include "i2s_dual_master.h"
 #include "ws2805_pio.h"
+#include "spdif_decoder.h"
 
 // Note: Standard Arduino-Pico I2S Objects removed. 
 // We exclusively use custom PIO state machines for routing.
@@ -74,6 +75,30 @@ uint sm_in_wlan;
 uint sm_in_bt;
 // uint sm_in_tv; // Uncomment when S/PDIF PIO assembly is integrated
 
+// DMA Channels
+int dma_in_chan;
+int dma_out_chan;
+uint32_t audio_buffer[256] __attribute__((aligned(1024))); // 256 * 4 = 1024 bytes
+
+
+void switch_audio_dma_source(volatile void* pio_sm_rx_fifo_addr, uint dreq) {
+  // Stop current input DMA
+  dma_channel_abort(dma_in_chan);
+  
+  // Reconfigure pacing to match the new PIO SM
+  dma_channel_config in_config = dma_channel_get_default_config(dma_in_chan);
+  channel_config_set_transfer_data_size(&in_config, DMA_SIZE_32);
+  channel_config_set_read_increment(&in_config, false);
+  channel_config_set_write_increment(&in_config, true);
+  channel_config_set_ring(&in_config, true, 10);
+  channel_config_set_dreq(&in_config, dreq); // Set correct DREQ for pacing
+
+  dma_channel_set_config(dma_in_chan, &in_config, false);
+  
+  // Restart input DMA to point to the new PIO SM FIFO
+  dma_channel_set_read_addr(dma_in_chan, pio_sm_rx_fifo_addr, true);
+}
+
 void setAudioSource(AudioSource newSource) {
   if (currentSource == newSource) return;
   currentSource = newSource;
@@ -83,12 +108,12 @@ void setAudioSource(AudioSource newSource) {
     case SRC_WLAN:    
       sourceName = "WLAN"; 
       // Route I2S_IN1 (S3) to DMA
-      switch_audio_dma_source(&pio0->rxf[sm_in_wlan], pio_get_dreq(pio0, sm_in_wlan, false));
+      switch_audio_dma_source((volatile void*)&pio0->rxf[sm_in_wlan], pio_get_dreq(pio0, sm_in_wlan, false));
       break;
     case SRC_BT:      
       sourceName = "Bluetooth"; 
       // Route I2S_IN2 (WROOM) to DMA
-      switch_audio_dma_source(&pio0->rxf[sm_in_bt], pio_get_dreq(pio0, sm_in_bt, false));
+      switch_audio_dma_source((volatile void*)&pio0->rxf[sm_in_bt], pio_get_dreq(pio0, sm_in_bt, false));
       break;
     case SRC_TV:      
       sourceName = "TOSLINK (TV)"; 
@@ -99,7 +124,7 @@ void setAudioSource(AudioSource newSource) {
     case SRC_OVERRIDE:
       sourceName = "HA Override (TTS)"; 
       // Route I2S_IN1 (S3) to DMA for Override
-      switch_audio_dma_source(&pio0->rxf[sm_in_wlan], pio_get_dreq(pio0, sm_in_wlan, false));
+      switch_audio_dma_source((volatile void*)&pio0->rxf[sm_in_wlan], pio_get_dreq(pio0, sm_in_wlan, false));
       break;
     default: return;
   }
@@ -110,11 +135,6 @@ void setAudioSource(AudioSource newSource) {
   // Also log to USB console
   Serial.printf("SOURCE_CHANGED:%s\n", sourceName.c_str());
 }
-
-// DMA Channels
-int dma_in_chan;
-int dma_out_chan;
-uint32_t audio_buffer[256] __attribute__((aligned(1024))); // 256 * 4 = 1024 bytes
 
 void setup_audio_dma() {
   // Claim DMA channels
@@ -147,24 +167,6 @@ void setup_audio_dma() {
       audio_buffer, 
       NULL, // Source (Set later dynamically)
       0xFFFFFFFF, false);
-}
-
-void switch_audio_dma_source(volatile void* pio_sm_rx_fifo_addr, uint dreq) {
-  // Stop current input DMA
-  dma_channel_abort(dma_in_chan);
-  
-  // Reconfigure pacing to match the new PIO SM
-  dma_channel_config in_config = dma_channel_get_default_config(dma_in_chan);
-  channel_config_set_transfer_data_size(&in_config, DMA_SIZE_32);
-  channel_config_set_read_increment(&in_config, false);
-  channel_config_set_write_increment(&in_config, true);
-  channel_config_set_ring(&in_config, true, 10);
-  channel_config_set_dreq(&in_config, dreq); // Set correct DREQ for pacing
-
-  dma_channel_set_config(dma_in_chan, &in_config, false);
-  
-  // Restart input DMA to point to the new PIO SM FIFO
-  dma_channel_set_read_addr(dma_in_chan, pio_sm_rx_fifo_addr, true);
 }
 
 void setup() {
@@ -282,11 +284,11 @@ void setup() {
   // Initialize Input PIOs (I2S Slaves)
   sm_in_wlan = pio_claim_unused_sm(pio0, true);
   uint offset_in_wlan = pio_add_program(pio0, &wlan_i2s_slave);
-  i2s_slave_program_init(pio0, sm_in_wlan, offset_in_wlan, I2S_IN1_DIN, I2S_IN1_BCLK);
+  i2s_slave_program_init(pio0, sm_in_wlan, offset_in_wlan, I2S_IN1_DIN);
   
   sm_in_bt = pio_claim_unused_sm(pio0, true);
   uint offset_in_bt = pio_add_program(pio0, &bt_i2s_slave);
-  i2s_slave_program_init(pio0, sm_in_bt, offset_in_bt, I2S_IN2_DIN, I2S_IN2_BCLK);
+  i2s_slave_program_init(pio0, sm_in_bt, offset_in_bt, I2S_IN2_DIN);
 
   // Note: For TV, claim a third state machine (sm_in_tv) and load the S/PDIF PIO program.
 
