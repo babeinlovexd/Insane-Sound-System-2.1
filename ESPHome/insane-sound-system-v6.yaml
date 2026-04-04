@@ -485,18 +485,41 @@ font:
 
 # I2S Audio Output (To RP2354)
 i2s_audio:
-  - id: i2s_out
-    i2s_lrclk_pin: GPIO5
+  - id: i2s_bus
     i2s_bclk_pin: GPIO4
+    i2s_lrclk_pin: GPIO5
+
+speaker:
+  - platform: i2s_audio
+    id: insane_speaker
+    dac_type: external
+    i2s_audio_id: i2s_bus
+    i2s_dout_pin: GPIO6
+    channel: stereo
+    use_apll: true
+    i2s_comm_fmt: stand_msb
+
+  - platform: mixer
+    id: insane_mixer
+    output_speaker: insane_speaker
+    queue_mode: true
+    source_speakers:
+      - id: media_spk_mixer_input
+      - id: announcement_spk_mixer_input
 
 media_player:
-  - platform: i2s_audio
-    name: "ESP32 S3 Media Player"
-    id: s3_media_player
-    dac_type: external
-    i2s_audio_id: i2s_out
-    i2s_dout_pin: GPIO6
-    mode: stereo
+  - platform: speaker
+    name: "Insane Sound System"
+    id: decken_audio
+    codec_support_enabled: all
+    media_pipeline:
+      speaker: media_spk_mixer_input
+      format: FLAC
+      num_channels: 2
+    announcement_pipeline:
+      speaker: announcement_spk_mixer_input
+      format: FLAC
+      num_channels: 2
 
 # Global variables to track flash state and pause metadata/status parsers
 # to prevent stealing bytes from the stream_server during proxy flashing.
