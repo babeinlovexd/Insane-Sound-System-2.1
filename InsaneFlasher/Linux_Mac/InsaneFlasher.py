@@ -168,7 +168,7 @@ class InsaneFlasher(ctk.CTk):
             inner_ctrl, text="⚡ System Reset", width=120, height=32,
             fg_color="transparent", border_width=1, border_color="#e67e22", 
             hover_color="#333333", text_color="#e67e22", font=("Roboto", 13, "bold"), 
-            command=self.restart_system
+            command=self.restart_bluetooth
         )
         self.restart_btn.pack(side="left", padx=(0, 5))
 
