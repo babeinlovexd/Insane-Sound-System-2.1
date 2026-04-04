@@ -483,8 +483,8 @@ class InsaneFlasher(ctk.CTk):
         fan = get_state("sensor", "fan_speed")
         fault = get_state("binary_sensor", "amp_fault")
         wifi = get_state("sensor", "wlan_signal")
-        bl_version = get_state("text_sensor", "bl_firmware_version")
-        rp_version = get_state("text_sensor", "rp2354_firmware_version")
+        bl_version = get_state("text", "bl_firmware_version")
+        rp_version = get_state("text", "rp2354_firmware_version")
         bt_conn = get_state("binary_sensor", "bluetooth_connected")
 
         import time

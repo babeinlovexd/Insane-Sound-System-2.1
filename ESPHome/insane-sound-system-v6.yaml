@@ -102,7 +102,7 @@ esp32:
 external_components:
   - source:
       type: git
-      url: https://github.com/babeinlovexd/Insane-Sound-System
+      url: https://github.com/babeinlovexd/Insane-Sound-System-2.1
     components: [ stream_server, uart_reader ]
     refresh: 0s
   - source:
@@ -186,6 +186,45 @@ sensor:
     on_value:
       - lambda: |-
           id(encoder_vol).set_value(x);
+
+  - platform: rotary_encoder
+    name: "Volume Encoder"
+    pin_a: GPIO15
+    pin_b: GPIO16
+    id: encoder_vol
+    resolution: 4
+    min_value: 0
+    max_value: 100
+    on_value:
+      - globals.set:
+          id: ui_mode
+          value: '1'
+      - lambda: |-
+          char buf[20];
+          sprintf(buf, "VOL:%.0f\n", x);
+          id(uart_rp2354).write_str(buf);
+
+          // Also sync volume to the Bluetooth chip
+          char buf_bt[25];
+          sprintf(buf_bt, "SET_BT_VOL:%.0f\n", x);
+          id(uart_metadata).write_str(buf_bt);
+
+      - homeassistant.service:
+          service: media_player.volume_set
+          data:
+            entity_id: ${ha_player_id}
+            volume_level: !lambda "return x / 100.0;"
+      - script.execute: timer_volume
+
+  - platform: wifi_signal
+    name: "WLAN Signal"
+    update_interval: 60s
+
+  - platform: internal_temperature
+    name: "ESP32 Intern Temp"
+
+  - platform: uptime
+    name: "System Laufzeit"
 
   # Environmental Temp
   - platform: lm75
@@ -281,6 +320,52 @@ switch:
     pin: GPIO48
     restore_mode: ALWAYS_ON
 
+  - platform: gpio
+    name: "Red LED"
+    id: led_red
+    pin:
+      pcf8574: pcf_ui
+      number: 3
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "White LED"
+    id: led_white
+    pin:
+      pcf8574: pcf_ui
+      number: 4
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "Blue LED"
+    id: led_blue
+    pin:
+      pcf8574: pcf_ui
+      number: 5
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "Green LED (Ready)"
+    id: led_green
+    pin:
+      pcf8574: pcf_ui
+      number: 6
+      mode: OUTPUT
+      inverted: true
+    restore_mode: ALWAYS_ON
+
+  - platform: gpio
+    name: "Yellow LED"
+    id: led_yellow
+    pin:
+      pcf8574: pcf_ui
+      number: 7
+      mode: OUTPUT
+      inverted: true
+
 binary_sensor:
   - platform: template
     name: "Bluetooth Connected"
@@ -351,53 +436,6 @@ binary_sensor:
           service: media_player.media_next_track
           data:
             entity_id: ${ha_player_id}
-
-switch:
-  - platform: gpio
-    name: "Red LED"
-    id: led_red
-    pin:
-      pcf8574: pcf_ui
-      number: 3
-      mode: OUTPUT
-      inverted: true
-
-  - platform: gpio
-    name: "White LED"
-    id: led_white
-    pin:
-      pcf8574: pcf_ui
-      number: 4
-      mode: OUTPUT
-      inverted: true
-
-  - platform: gpio
-    name: "Blue LED"
-    id: led_blue
-    pin:
-      pcf8574: pcf_ui
-      number: 5
-      mode: OUTPUT
-      inverted: true
-
-  - platform: gpio
-    name: "Green LED (Ready)"
-    id: led_green
-    pin:
-      pcf8574: pcf_ui
-      number: 6
-      mode: OUTPUT
-      inverted: true
-    restore_mode: ALWAYS_ON
-
-  - platform: gpio
-    name: "Yellow LED"
-    id: led_yellow
-    pin:
-      pcf8574: pcf_ui
-      number: 7
-      mode: OUTPUT
-      inverted: true
 
 number:
   - platform: template
@@ -474,53 +512,9 @@ number:
             entity_id: ${ha_player_id}
       - script.execute: timer_action
 
-sensor:
-  - platform: rotary_encoder
-    name: "Volume Encoder"
-    pin_a: GPIO15
-    pin_b: GPIO16
-    id: encoder_vol
-    resolution: 4
-    min_value: 0
-    max_value: 100
-    on_value:
-      - globals.set:
-          id: ui_mode
-          value: '1'
-      - lambda: |-
-          char buf[20];
-          sprintf(buf, "VOL:%.0f\n", x);
-          id(uart_rp2354).write_str(buf);
-
-          // Also sync volume to the Bluetooth chip
-          char buf_bt[25];
-          sprintf(buf_bt, "SET_BT_VOL:%.0f\n", x);
-          id(uart_metadata).write_str(buf_bt);
-
-      - homeassistant.service:
-          service: media_player.volume_set
-          data:
-            entity_id: ${ha_player_id}
-            volume_level: !lambda "return x / 100.0;"
-      - script.execute: timer_volume
-
 # ##############################################################################
 # DISPLAY (ST7789) & UI GLOBALS
 # ##############################################################################
-globals:
-  - id: ui_mode
-    type: int
-    initial_value: '0' # 0 = Normal, 1 = Volume Bar, 2 = Action Symbol
-  - id: is_muted
-    type: bool
-    initial_value: 'false'
-  - id: current_action_symbol
-    type: std::string
-    initial_value: '""'
-  - id: display_awake
-    type: bool
-    initial_value: 'true'
-
 script:
   - id: timer_volume
     mode: restart
@@ -706,6 +700,18 @@ globals:
   - id: rp2354_is_flashing
     type: bool
     initial_value: "false"
+  - id: ui_mode
+    type: int
+    initial_value: '0' # 0 = Normal, 1 = Volume Bar, 2 = Action Symbol
+  - id: is_muted
+    type: bool
+    initial_value: 'false'
+  - id: current_action_symbol
+    type: std::string
+    initial_value: '""'
+  - id: display_awake
+    type: bool
+    initial_value: 'true'
 
 uart:
   - id: uart_wroom
@@ -797,7 +803,8 @@ text_sensor:
 text:
   - platform: template
     name: "BL Firmware Version"
-    id: wroom_version
+    id: bl_firmware_version
+    mode: text
     internal: true
     optimistic: true
     restore_value: true
@@ -805,7 +812,8 @@ text:
 
   - platform: template
     name: "RP2354 Firmware Version"
-    id: rp2354_version
+    id: rp2354_firmware_version
+    mode: text
     internal: true
     optimistic: true
     restore_value: true
