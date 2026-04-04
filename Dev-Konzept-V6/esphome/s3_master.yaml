@@ -1,0 +1,280 @@
+substitutions:
+  name: insane-sound-system-s3
+  friendly_name: Insane Sound System V6 (Master)
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  platform: ESP32
+  board: esp32-s3-devkitc-1
+  includes:
+    - uart_reader.h
+
+external_components:
+  - source: custom_components
+
+wifi:
+  # ap:
+  #   ssid: "${name}-fallback"
+
+api:
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+ota:
+  - platform: esphome
+
+# I2C Bus for UI Expander and Temp Sensor
+i2c:
+  sda: GPIO8
+  scl: GPIO18
+  scan: true
+  id: i2c_bus
+
+# Thermal Management (LM75AD Sensors and RP2354)
+sensor:
+  # Environmental Temp
+  - platform: lm75
+    name: "ESP Ambient Temperature"
+    address: 0x48 
+    update_interval: 10s
+    
+  # Amplifier Temp
+  - platform: lm75
+    name: "MA12070P Temperature"
+    address: 0x49
+    update_interval: 10s
+    
+  # Power Supply Temp
+  - platform: lm75
+    name: "TPS5430 Temperature"
+    address: 0x4A
+    update_interval: 10s
+
+  # RP2354 Internal Temp parsed via UART
+  - platform: template
+    name: "RP2354 DSP Temperature"
+    id: rp2354_temperature
+    unit_of_measurement: "°C"
+    device_class: "temperature"
+
+# PCF8574T UI Expander (Buttons/LEDs)
+pcf8574:
+  - id: pcf_ui
+    address: 0x20
+
+switch:
+  - platform: gpio
+    name: "LED 1"
+    pin:
+      pcf8574: pcf_ui
+      number: 0
+      mode: OUTPUT
+      inverted: true
+  - platform: gpio
+    name: "LED 2"
+    pin:
+      pcf8574: pcf_ui
+      number: 1
+      mode: OUTPUT
+      inverted: true
+
+  # Boot Control Pins for WROOM
+  - platform: gpio
+    id: wroom_en
+    pin: GPIO39
+    restore_mode: ALWAYS_ON
+  - platform: gpio
+    id: wroom_io0
+    pin: GPIO38
+    restore_mode: ALWAYS_ON
+
+  # Boot Control Pins for RP2354
+  - platform: gpio
+    id: rp2354_run
+    pin: GPIO47
+    restore_mode: ALWAYS_ON
+  - platform: gpio
+    id: rp2354_bootsel
+    pin: GPIO48
+    restore_mode: ALWAYS_ON
+
+binary_sensor:
+  - platform: gpio
+    name: "Button 1"
+    pin:
+      pcf8574: pcf_ui
+      number: 2
+      mode: INPUT_PULLUP
+      inverted: true
+  - platform: gpio
+    name: "Button 2"
+    pin:
+      pcf8574: pcf_ui
+      number: 3
+      mode: INPUT_PULLUP
+      inverted: true
+
+# Rotary Encoder (Direct inputs)
+  - platform: gpio
+    name: "Encoder Button"
+    pin:
+      number: GPIO17
+      mode: INPUT_PULLUP
+      inverted: true
+    id: encoder_btn
+
+sensor:
+  - platform: rotary_encoder
+    name: "Volume Encoder"
+    pin_a: GPIO15
+    pin_b: GPIO16
+    id: encoder_vol
+    resolution: 4
+
+# SPI Bus for Display
+spi:
+  clk_pin: GPIO12
+  mosi_pin: GPIO11
+
+# ST7789 Display
+display:
+  - platform: st7789v
+    id: main_display
+    cs_pin: GPIO10
+    dc_pin: GPIO9
+    reset_pin: GPIO40
+    # Note: Backlight is controlled by RP2354, not S3
+    rotation: 0
+    pages:
+      - id: page1
+        lambda: |-
+          it.print(0, 0, id(font1), "Insane Audio V6");
+          it.printf(0, 20, id(font2), "Vol: %d", (int)id(encoder_vol).state);
+          it.printf(0, 60, id(font1), "Track: %s", id(bt_track).state.c_str());
+          it.printf(0, 80, id(font1), "Artist: %s", id(bt_artist).state.c_str());
+
+font:
+  - file: "gfonts://Roboto"
+    id: font1
+    size: 16
+  - file: "gfonts://Roboto"
+    id: font2
+    size: 24
+
+# I2S Audio Output (To RP2354)
+i2s_audio:
+  - id: i2s_out
+    i2s_lrclk_pin: GPIO5
+    i2s_bclk_pin: GPIO4
+
+media_player:
+  - platform: i2s_audio
+    name: "ESP32 S3 Media Player"
+    id: s3_media_player
+    dac_type: external
+    i2s_audio_id: i2s_out
+    i2s_dout_pin: GPIO6
+    mode: stereo
+
+# Global variables to track flash state and pause metadata/status parsers
+# to prevent stealing bytes from the stream_server during proxy flashing.
+globals:
+  - id: wroom_is_flashing
+    type: bool
+    initial_value: "false"
+  - id: rp2354_is_flashing
+    type: bool
+    initial_value: "false"
+
+# Multi UART Setup for independent Proxy Flashing and Metadata
+uart:
+  - id: uart_wroom
+    tx_pin: GPIO42
+    rx_pin: GPIO41
+    baud_rate: 115200
+
+  - id: uart_metadata
+    tx_pin: GPIO44
+    rx_pin: GPIO43
+    baud_rate: 115200
+
+  - id: uart_rp2354
+    tx_pin: GPIO2
+    rx_pin: GPIO1
+    baud_rate: 115200
+
+# Text sensors to hold Bluetooth metadata and DSP Status
+text_sensor:
+  - platform: template
+    id: bt_track
+    name: "Bluetooth Track"
+  - platform: template
+    id: bt_artist
+    name: "Bluetooth Artist"
+  - platform: template
+    id: dsp_active_source
+    name: "Active Audio Source"
+
+# Custom Component to read lines from UART and populate sensors
+custom_component:
+  - lambda: |-
+      auto *wroom_reader = new custom_uart_reader::CustomUARTReader(
+          id(uart_metadata), id(bt_track), id(bt_artist), nullptr, nullptr, nullptr);
+          // Note: WROOM Metadata UART is isolated, no proxy byte stealing is possible.
+      
+      auto *dsp_reader = new custom_uart_reader::CustomUARTReader(
+          id(uart_rp2354), nullptr, nullptr, id(dsp_active_source), id(rp2354_temperature), &id(rp2354_is_flashing));
+          // DSP shares UART2 for Metadata & Proxy, so we pass the flashing boolean to pause reading.
+          
+      App.register_component(wroom_reader);
+      App.register_component(dsp_reader);
+      return {wroom_reader, dsp_reader};
+
+# Custom Stream Servers (Uses the external component defined in custom_components/stream_server)
+# As explicitly requested, this embeds your modified V5 stream_server logic.
+custom_stream_server:
+  - uart_id: uart_wroom
+    port: 6666
+  - uart_id: uart_rp2354
+    port: 6667
+
+web_server:
+  port: 80
+
+# Template Buttons exposed to REST API to trigger flash/boot sequences
+button:
+  - platform: template
+    name: "WROOM Flash Mode"
+    id: wroom_flash_mode
+    on_press:
+      - logger.log: "Putting WROOM into download mode"
+      - lambda: 'id(wroom_is_flashing) = true;'
+      - switch.turn_off: wroom_io0
+      - switch.turn_off: wroom_en
+      - delay: 50ms
+      - switch.turn_on: wroom_en
+
+  - platform: template
+    name: "WROOM Normal Boot"
+    id: wroom_normal_boot
+    on_press:
+      - logger.log: "Rebooting WROOM normally"
+      - switch.turn_on: wroom_io0
+      - switch.turn_off: wroom_en
+      - delay: 50ms
+      - switch.turn_on: wroom_en
+      - lambda: 'id(wroom_is_flashing) = false;'
+
+  - platform: template
+    name: "RP2354 Flash Mode"
+    id: rp2354_flash_mode
+    on_press:
+      - logger.log: "Putting RP2354 into bootloader mode"
+      - switch.turn_off: rp2354_bootsel
+      - switch.turn_off: rp2354_run
+      - delay: 50ms
+      - switch.turn_on: rp2354_run
+      - delay: 50ms
+      - switch.turn_on: rp2354_bootsel
