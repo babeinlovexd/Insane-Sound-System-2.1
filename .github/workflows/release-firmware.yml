@@ -31,11 +31,17 @@ jobs:
       - name: RP2354A Firmware kompilieren
         run: pio run -d Firmware/RP2354A -e rp2354
 
-      - name: Umbenennen und an Release anhängen
+      - name: Dateien für Release vorbereiten
+        shell: bash
+        run: |
+          cp Firmware/WROOM32D/.pio/build/esp32dev/firmware.bin wroom.bin
+          cp Firmware/RP2354A/.pio/build/rp2354/firmware.bin rp2354.bin
+
+      - name: Assets an Release anhängen
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            Firmware/WROOM32D/.pio/build/esp32dev/firmware.bin#wroom.bin
-            Firmware/RP2354A/.pio/build/rp2354/firmware.bin#rp2354.bin
+            wroom.bin
+            rp2354.bin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
