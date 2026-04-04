@@ -11,7 +11,7 @@ esphome:
     - uart_reader.h
 
 external_components:
-  - source: custom_components
+  - source: components
 
 wifi:
   # ap:
@@ -37,18 +37,21 @@ sensor:
   # Environmental Temp
   - platform: lm75
     name: "ESP Ambient Temperature"
+    id: temp_env
     address: 0x48 
     update_interval: 10s
     
   # Amplifier Temp
   - platform: lm75
     name: "MA12070P Temperature"
+    id: temp_amp
     address: 0x49
     update_interval: 10s
     
   # Power Supply Temp
   - platform: lm75
     name: "TPS5430 Temperature"
+    id: temp_psu
     address: 0x4A
     update_interval: 10s
 
@@ -58,6 +61,23 @@ sensor:
     id: rp2354_temperature
     unit_of_measurement: "°C"
     device_class: "temperature"
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          // Broadcast LM75 Thermal data to RP2354 over UART2
+          // Format: THERMAL:amb_temp:amp_temp:psu_temp
+          float amb = id(temp_env).state;
+          float amp = id(temp_amp).state;
+          float psu = id(temp_psu).state;
+          if (isnan(amb)) amb = 0;
+          if (isnan(amp)) amp = 0;
+          if (isnan(psu)) psu = 0;
+
+          char buf[64];
+          sprintf(buf, "THERMAL:%.1f:%.1f:%.1f\n", amb, amp, psu);
+          id(uart_rp2354).write_str(buf);
 
 # PCF8574T UI Expander (Buttons/LEDs)
 pcf8574:
@@ -232,9 +252,9 @@ custom_component:
       App.register_component(dsp_reader);
       return {wroom_reader, dsp_reader};
 
-# Custom Stream Servers (Uses the external component defined in custom_components/stream_server)
+# Custom Stream Servers (Uses the external component defined in components/stream_server)
 # As explicitly requested, this embeds your modified V5 stream_server logic.
-custom_stream_server:
+stream_server:
   - uart_id: uart_wroom
     port: 6666
   - uart_id: uart_rp2354
