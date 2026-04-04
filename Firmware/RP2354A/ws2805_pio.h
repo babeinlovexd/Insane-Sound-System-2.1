@@ -40,21 +40,35 @@
 // T0: 3 high, 9 low
 // T1: 6 high, 6 low
 //
-// .wrap_target
+// Corrected to absolute standard WS2812 style but with specific delay ratios
+// 10MHz Clock = 0.1 us per cycle
+// Total bit time: 1.2us (12 cycles)
+//
 // bitloop:
-//   out x, 1       side 0 [1] ; (side 0 from end of last bit, lasts 2 cycles: this instr + wait 1)
-//   jmp !x do_zero side 1 [2] ; Drive HIGH. Takes 1 instr + 2 wait = 3 cycles high.
+//   out x, 1       side 0 [5] ; 6 cycles low (from previous bit, ends T0L/T1L)
+//   jmp !x do_zero side 1 [2] ; 3 cycles high (T0H/T1H begin)
 // do_one:
-//   jmp bitloop    side 1 [2] ; Still HIGH. Takes 1 instr + 2 wait = 3 cycles high. Total high = 6 cycles.
+//   jmp bitloop    side 1 [2] ; 3 cycles high (T1H continues)
 // do_zero:
-//   nop            side 0 [3] ; Drive LOW. Takes 1 instr + 3 wait = 4 cycles low. (Total low for '1' = 2+4=6 cycles? Wait.)
+//   nop            side 0 [2] ; 3 cycles low (T0L begins)
+//
+// Trace Bit 0 (X=0):
+//   out: 6 low. jmp!x: 3 high (jumps). nop: 3 low.
+//   Total High = 3 (0.3us). Total Low = 3 (nop) + 6 (out) = 9 (0.9us).
+// Trace Bit 1 (X=1):
+//   out: 6 low. jmp!x: 3 high (doesn't jump). jmp: 3 high.
+//   Total High = 3 + 3 = 6 (0.6us). Total Low = 0 (no nop) + 6 (out) = 6 (0.6us).
+//
+// This perfectly matches WS2805 timings:
+// T0: 0.3us / 0.9us (req 0.28 / 0.92)
+// T1: 0.6us / 0.6us (req 0.62 / 0.58)
 
 static const uint16_t ws2805_program_instructions[] = {
             //     .wrap_target
-    0x6121, //  0: out    x, 1            side 0 [1]
+    0x6521, //  0: out    x, 1            side 0 [5]
     0x1223, //  1: jmp    !x, 3           side 1 [2]
     0x1200, //  2: jmp    0               side 1 [2]
-    0xa342, //  3: nop                    side 0 [3]
+    0xa242, //  3: nop                    side 0 [2]
             //     .wrap
 };
 

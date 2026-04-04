@@ -1,18 +1,18 @@
-# 🔊 Insane Sound System V5
+# 🔊 Insane Sound System V6
 <div align="center">
   <img src="https://img.shields.io/github/v/release/babeinlovexd/Insane-Sound-System?style=for-the-badge&color=2ecc71" alt="Latest Release">
   <img src="https://img.shields.io/badge/Status-Stable-2ecc71?style=for-the-badge" alt="Status">
   <img src="https://img.shields.io/badge/ESPHome-Ready-03A9F4?style=for-the-badge&logo=esphome" alt="ESPHome">
-  <img src="https://img.shields.io/badge/Hardware-V5.5-f39c12?style=for-the-badge&logo=pcb" alt="Hardware Version">
+  <img src="https://img.shields.io/badge/Hardware-V6.5-f39c12?style=for-the-badge&logo=pcb" alt="Hardware Version">
   <img src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey?style=for-the-badge&logo=creative-commons" alt="License: CC BY-NC-SA 4.0">
 </div>
 <br>
 
 🌍 **[Read this in English](README_en.md)**
 
-Willkommen beim **Insane Sound System V5** dem ultimativen, smarten High-End WLAN & Bluetooth Lautsprecher-Controller!
+Willkommen beim **Insane Sound System V6** dem ultimativen, smarten High-End WLAN & Bluetooth Lautsprecher-Controller!
 
-Monatelange Entwicklung, unzählige Prototypen, Schweiß, Tränen und der unbändige Wille, die absolut perfekte Audio-Zentrale zu erschaffen, sind in diese Platine geflossen. Das **Insane Sound System V5** ist das ultimative Resultat dieses Wahnsinns. 
+Monatelange Entwicklung, unzählige Prototypen, Schweiß, Tränen und der unbändige Wille, die absolut perfekte Audio-Zentrale zu erschaffen, sind in diese Platine geflossen. Das **Insane Sound System V6** ist das ultimative Resultat dieses Wahnsinns.
 
 **Was ist das Insane Sound System überhaupt?**
 Es ist nicht einfach nur ein Verstärker-Board. Es ist das kompromisslose, smarte Herzstück für deine selbstgebaute High-End-Audiobox. Es verbindet audiophile Hardware mit der unendlichen Flexibilität von Smart Homes und gibt dir die absolute Kontrolle über Sound, Licht und Hardware – alles auf einer winzigen, professionellen 100x100mm Platine.
@@ -29,11 +29,11 @@ Dieses Board ist bis unter die Zähne bewaffnet mit Features:
 
 Diese Version wurde von Grund auf neu entwickelt. Das Ziel: Maximale Audio-Leistung, idiotensichere Bedienung und ein Hardware-Design, das sich professionell fertigen und trotzdem völlig entspannt zu Hause zusammenbauen lässt.
 
-<img src="Images/3.png" width="400" alt="Insane Sound System V5 - 3D Render">
+<img src="Images/3.png" width="400" alt="Insane Sound System V6 - 3D Render">
 
-## ✨ Was ist neu in V5? (Hardware & Features)
+## ✨ Was ist neu in V6? (Hardware & Features)
 
-Wir haben keine halben Sachen gemacht. V5 bringt massive Upgrades unter der Haube:
+Wir haben keine halben Sachen gemacht. V6 bringt massive Upgrades unter der Haube:
 
 * **Kompaktes 100x100mm Design:** Die Platine passt in fast jedes Gehäuse und bleibt genau unter der magischen Grenze, um bei PCB-Herstellern extrem günstig bestellt werden zu können. Bessere Thermik und optimales Routing auf kleinstem Raum!
 * **Handlötfreundliches SMD-Design:** Das Board besteht zu 90% aus SMD-Bauteilen für kürzere, saubere Signalwege und ein modernes Design. **Keine Panik:** Die kleinsten Bauteile sind strikt auf die **Größe 1206** limitiert! Du brauchst kein Mikroskop und keine ruhigen Chirurgen-Hände, alles lässt sich völlig entspannt von Hand löten.
@@ -92,7 +92,7 @@ Aus Sicherheitsgründen nutzt dieses Projekt ausgelagerte Passwörter.
 
 ## 🚀 Das offizielle InsaneFlasher Tool (All-in-One)
 
-Schluss mit komplizierten Kommandozeilen! Das Insane Sound System V5 kommt jetzt mit einem eigenen, professionellen Hub für **Windows, macOS und Linux**.
+Schluss mit komplizierten Kommandozeilen! Das Insane Sound System V6 kommt jetzt mit einem eigenen, professionellen Hub für **Windows, macOS und Linux**.
 
 Der **InsaneFlasher** ist dein zentrales Dashboard zur Steuerung, Überwachung und Wartung deines Insane Sound System`s. Dank ZeroConf-Technologie findet das Tool dein Insane Sound System automatisch im Netzwerk.
 
@@ -118,7 +118,7 @@ Sobald dein Mainboard (S3) im WLAN läuft, flashen wir den Bluetooth-Chip (WROOM
 **Der Flash-Vorgang:**
 Wähle dein Insane Sound System im Tool aus und klicke einfach auf den großen roten Button **"UPDATE JETZT INSTALLIEREN"**. Das Tool lädt automatisch die neueste Firmware herunter, bringt den Chip in den Flash-Modus, installiert das Update und startet das Insane Sound System neu. Lehn dich einfach zurück!
 
-**Glückwunsch! Dein Insane Sound System V5 ist jetzt voll einsatzbereit!**
+**Glückwunsch! Dein Insane Sound System V6 ist jetzt voll einsatzbereit!**
 
 <img src="Images/4.svg" width="800" alt="Schematic">
 
@@ -131,7 +131,7 @@ Das bedeutet: Nachbauen und Anpassen für private Zwecke ist ausdrücklich erwü
 ---
 
 ## ☕ Support dieses Projekts
-V5 hat extrem viel Zeit, Nerven und Kaffee gekostet. Wenn dir das System gefällt und du meine Arbeit unterstützen möchtest, freue ich mich riesig über einen virtuellen Kaffee!
+V6 hat extrem viel Zeit, Nerven und Kaffee gekostet. Wenn dir das System gefällt und du meine Arbeit unterstützen möchtest, freue ich mich riesig über einen virtuellen Kaffee!
 
 <a href="https://www.paypal.me/babeinlovexd">
   <img src="https://img.shields.io/badge/Donate-PayPal-blue.svg?style=for-the-badge&logo=paypal" alt="Donate mit PayPal">

@@ -65,7 +65,7 @@ The mapping is derived from the module diagrams, the system architecture flow, a
 
 ---
 
-## 3. RP2354B (DSP, Routing & Power Logic)
+## 3. RP2354A (DSP, Routing & Power Logic)
 
 **Roles:** I2S Input mixing/switching, I2S Output to Amps, Amp config (I2C), Fan PWM, Display Backlight PWM, LED 1-Wire Data.
 

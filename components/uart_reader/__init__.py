@@ -19,6 +19,11 @@ CONF_FAN = "fan_sensor"
 CONF_FAULT = "fault_sensor"
 CONF_STREAM = "stream_status"
 CONF_SYS_STAT = "sys_stat"
+CONF_ALBUM = "album_sensor"
+CONF_BT_CONN = "bt_conn_sensor"
+CONF_BT_VOL = "bt_vol_sensor"
+CONF_WROOM_VER = "wroom_ver_sensor"
+CONF_RP_VER = "rp_ver_sensor"
 CONF_IS_FLASHING = "is_flashing"
 
 CONFIG_SCHEMA = cv.Schema(
@@ -26,12 +31,17 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(CustomUARTReader),
         cv.Optional(CONF_TRACK): cv.use_id(text_sensor.TextSensor),
         cv.Optional(CONF_ARTIST): cv.use_id(text_sensor.TextSensor),
+        cv.Optional(CONF_ALBUM): cv.use_id(text_sensor.TextSensor),
         cv.Optional(CONF_STATUS): cv.use_id(text_sensor.TextSensor),
         cv.Optional(CONF_TEMP): cv.use_id(sensor.Sensor),
         cv.Optional(CONF_FAN): cv.use_id(sensor.Sensor),
         cv.Optional(CONF_FAULT): cv.use_id(binary_sensor.BinarySensor),
         cv.Optional(CONF_STREAM): cv.use_id(text_sensor.TextSensor),
         cv.Optional(CONF_SYS_STAT): cv.use_id(text_sensor.TextSensor),
+        cv.Optional(CONF_BT_CONN): cv.use_id(binary_sensor.BinarySensor),
+        cv.Optional(CONF_BT_VOL): cv.use_id(sensor.Sensor),
+        cv.Optional(CONF_WROOM_VER): cv.use_id(text_sensor.TextSensor),
+        cv.Optional(CONF_RP_VER): cv.use_id(text_sensor.TextSensor),
         cv.Optional(CONF_IS_FLASHING): cv.use_id(cg.GlobalVariable),
     }
 ).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
@@ -39,12 +49,17 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     track = await cg.get_variable(config[CONF_TRACK]) if CONF_TRACK in config else cg.nullptr
     artist = await cg.get_variable(config[CONF_ARTIST]) if CONF_ARTIST in config else cg.nullptr
+    album = await cg.get_variable(config[CONF_ALBUM]) if CONF_ALBUM in config else cg.nullptr
     status = await cg.get_variable(config[CONF_STATUS]) if CONF_STATUS in config else cg.nullptr
     temp = await cg.get_variable(config[CONF_TEMP]) if CONF_TEMP in config else cg.nullptr
     fan = await cg.get_variable(config[CONF_FAN]) if CONF_FAN in config else cg.nullptr
     fault = await cg.get_variable(config[CONF_FAULT]) if CONF_FAULT in config else cg.nullptr
     stream = await cg.get_variable(config[CONF_STREAM]) if CONF_STREAM in config else cg.nullptr
     sys_stat = await cg.get_variable(config[CONF_SYS_STAT]) if CONF_SYS_STAT in config else cg.nullptr
+    bt_conn = await cg.get_variable(config[CONF_BT_CONN]) if CONF_BT_CONN in config else cg.nullptr
+    bt_vol = await cg.get_variable(config[CONF_BT_VOL]) if CONF_BT_VOL in config else cg.nullptr
+    wroom_ver = await cg.get_variable(config[CONF_WROOM_VER]) if CONF_WROOM_VER in config else cg.nullptr
+    rp_ver = await cg.get_variable(config[CONF_RP_VER]) if CONF_RP_VER in config else cg.nullptr
 
     is_flashing = cg.nullptr
     if CONF_IS_FLASHING in config:
@@ -55,7 +70,7 @@ async def to_code(config):
 
     var = cg.new_Pvariable(
         config[CONF_ID],
-        parent, track, artist, status, temp, fan, fault, stream, sys_stat, is_flashing
+        parent, track, artist, album, status, temp, fan, fault, stream, sys_stat, bt_conn, bt_vol, wroom_ver, rp_ver, is_flashing
     )
 
     await cg.register_component(var, config)

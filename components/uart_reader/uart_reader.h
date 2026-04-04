@@ -20,18 +20,28 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
   esphome::binary_sensor::BinarySensor *fault_sensor_;
   esphome::text_sensor::TextSensor *stream_status_;
   esphome::text_sensor::TextSensor *sys_stat_sensor_;
+  esphome::text_sensor::TextSensor *album_sensor_;
+  esphome::binary_sensor::BinarySensor *bt_conn_sensor_;
+  esphome::sensor::Sensor *bt_vol_sensor_;
+  esphome::text_sensor::TextSensor *wroom_ver_sensor_;
+  esphome::text_sensor::TextSensor *rp_ver_sensor_;
 
   CustomUARTReader(esphome::uart::UARTComponent *parent,
                    esphome::text_sensor::TextSensor *track,
                    esphome::text_sensor::TextSensor *artist,
+                   esphome::text_sensor::TextSensor *album,
                    esphome::text_sensor::TextSensor *status,
                    esphome::sensor::Sensor *temp,
                    esphome::sensor::Sensor *fan,
                    esphome::binary_sensor::BinarySensor *fault,
                    esphome::text_sensor::TextSensor *stream_status,
                    esphome::text_sensor::TextSensor *sys_stat,
+                   esphome::binary_sensor::BinarySensor *bt_conn,
+                   esphome::sensor::Sensor *bt_vol,
+                   esphome::text_sensor::TextSensor *wroom_ver,
+                   esphome::text_sensor::TextSensor *rp_ver,
                    bool *is_flashing)
-      : UARTDevice(parent), track_sensor_(track), artist_sensor_(artist), status_sensor_(status), temp_sensor_(temp), fan_sensor_(fan), fault_sensor_(fault), stream_status_(stream_status), sys_stat_sensor_(sys_stat), is_flashing_(is_flashing) {}
+      : UARTDevice(parent), track_sensor_(track), artist_sensor_(artist), album_sensor_(album), status_sensor_(status), temp_sensor_(temp), fan_sensor_(fan), fault_sensor_(fault), stream_status_(stream_status), sys_stat_sensor_(sys_stat), bt_conn_sensor_(bt_conn), bt_vol_sensor_(bt_vol), wroom_ver_sensor_(wroom_ver), rp_ver_sensor_(rp_ver), is_flashing_(is_flashing) {}
 
   void setup() override {
     // nothing to do here
@@ -135,10 +145,23 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
 
     // Parse BT_VOL to sync the volume slider with phone changes
     if (s_line.find("BT_VOL:") == 0) {
-      // In ESPHome, we must use id(bl_volume_slider).publish_state() to update.
-      // But we don't have a direct reference to it in this component.
-      // To keep it simple, we don't update the slider directly from this component,
-      // the user might need a number pointer, or we just rely on HA.
+      if (bt_vol_sensor_) {
+        try {
+          float vol = std::stof(s_line.substr(7));
+          bt_vol_sensor_->publish_state(vol);
+        } catch (...) {}
+      }
+      return;
+    }
+
+    // Parse BT_CONN to track connection status
+    if (s_line.find("BT_CONN:") == 0) {
+      if (bt_conn_sensor_) {
+        try {
+          int conn = std::stoi(s_line.substr(8));
+          bt_conn_sensor_->publish_state(conn > 0);
+        } catch (...) {}
+      }
       return;
     }
 
@@ -153,6 +176,27 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     if (s_line.find("ARTIST:") == 0) {
       if (artist_sensor_) {
         artist_sensor_->publish_state(s_line.substr(7));
+      }
+      return;
+    }
+
+    if (s_line.find("ALBUM:") == 0) {
+      if (album_sensor_) {
+        album_sensor_->publish_state(s_line.substr(6));
+      }
+      return;
+    }
+
+    if (s_line.find("WROOM_VER:") == 0) {
+      if (wroom_ver_sensor_) {
+        wroom_ver_sensor_->publish_state(s_line.substr(10));
+      }
+      return;
+    }
+
+    if (s_line.find("RP_VER:") == 0) {
+      if (rp_ver_sensor_) {
+        rp_ver_sensor_->publish_state(s_line.substr(7));
       }
       return;
     }
