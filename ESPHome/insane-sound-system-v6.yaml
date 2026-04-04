@@ -391,13 +391,51 @@ switch:
       inverted: true
 
   - platform: gpio
-    name: "Yellow LED"
-    id: led_yellow
+    name: "Green LED (Ready)"
+    id: led_green
     pin:
       pcf8574: pcf_ui
       number: 6
       mode: OUTPUT
       inverted: true
+    restore_mode: ALWAYS_ON
+
+  - platform: gpio
+    name: "Yellow LED"
+    id: led_yellow
+    pin:
+      pcf8574: pcf_ui
+      number: 7
+      mode: OUTPUT
+      inverted: true
+
+number:
+  - platform: template
+    name: "Bluetooth Lautstärke"
+    id: bl_volume_slider
+    icon: "mdi:volume-high"
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 100
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            char buf[20];
+            sprintf(buf, "VOL:%.0f\n", x);
+            id(uart_rp2354).write_str(buf);
+
+            char buf_bt[25];
+            sprintf(buf_bt, "SET_BT_VOL:%.0f\n", x);
+            id(uart_metadata).write_str(buf_bt);
+
+            id(encoder_vol).set_value(x);
+        - homeassistant.service:
+            service: media_player.volume_set
+            data:
+              entity_id: ${ha_player_id}
+              volume_level: !lambda "return x / 100.0;"
 
   # Rotary Encoder (Direct inputs)
   - platform: gpio
@@ -863,6 +901,9 @@ button:
     name: "RP2354 Flash Mode"
     id: rp2354_flash_mode
     on_press:
+      - globals.set:
+          id: rp2354_is_flashing
+          value: 'true'
       - logger.log: "Putting RP2354 into bootloader mode"
       - switch.turn_off: rp2354_bootsel
       - switch.turn_off: rp2354_run
@@ -870,3 +911,16 @@ button:
       - switch.turn_on: rp2354_run
       - delay: 50ms
       - switch.turn_on: rp2354_bootsel
+
+  - platform: template
+    name: "RP2354 Normal Boot"
+    id: rp2354_normal_boot
+    on_press:
+      - globals.set:
+          id: rp2354_is_flashing
+          value: 'false'
+      - logger.log: "Rebooting RP2354 normally"
+      - switch.turn_on: rp2354_bootsel
+      - switch.turn_off: rp2354_run
+      - delay: 50ms
+      - switch.turn_on: rp2354_run
