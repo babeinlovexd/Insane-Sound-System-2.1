@@ -112,7 +112,7 @@ void setAudioSource(AudioSource newSource) {
 // DMA Channels
 int dma_in_chan;
 int dma_out_chan;
-uint32_t audio_buffer[1024];
+uint32_t audio_buffer[256] __attribute__((aligned(1024))); // 256 * 4 = 1024 bytes
 
 void setup_audio_dma() {
   // Claim DMA channels
@@ -133,16 +133,18 @@ void setup_audio_dma() {
   channel_config_set_write_increment(&out_config, false);
   channel_config_set_ring(&out_config, false, 10); // 1024 bytes ring buffer
   
-  // Chain them together to run continuously
+  // In order to not stop after the first 1024 words, set transfer count to a huge number,
+  // or set up a control block to loop forever. The simplest fix for free-running I2S
+  // without interrupts is setting a practically infinite transfer count (e.g. 0xFFFFFFFF).
   dma_channel_configure(dma_out_chan, &out_config, 
       NULL, // Destination (Set later in main)
       audio_buffer, 
-      1024, false); // Configure for 1024 transfers before wrapping
+      0xFFFFFFFF, false);
       
   dma_channel_configure(dma_in_chan, &in_config, 
       audio_buffer, 
       NULL, // Source (Set later dynamically)
-      1024, false); // Configure for 1024 transfers before wrapping
+      0xFFFFFFFF, false);
 }
 
 void switch_audio_dma_source(volatile void* pio_sm_rx_fifo_addr, uint dreq) {
@@ -166,8 +168,8 @@ void switch_audio_dma_source(volatile void* pio_sm_rx_fifo_addr, uint dreq) {
 void setup() {
   Serial.begin(115200); // Native USB
   
-  // Setup UART for S3 Communication (TX=GP22, RX=GP21)
-  Serial1.setTX(22);
+  // Setup UART for S3 Communication (TX=GP24, RX=GP21)
+  Serial1.setTX(24);
   Serial1.setRX(21);
   Serial1.begin(115200);
   
@@ -320,8 +322,8 @@ void loop() {
   // UART Handshake & Priority Matrix Evaluation
   // ---------------------------------------------------------
   static bool haOverrideActive = false; 
-  static float envTempS3 = 0.0;
-  static float envTempAmb = 0.0;
+  static float tempAmb = 0.0;
+  static float tempAmp = 0.0;
   static float tempPsu = 0.0;
   
   if (Serial1.available()) {
@@ -332,13 +334,13 @@ void loop() {
     if (cmd == "OVERRIDE_START") haOverrideActive = true;
     else if (cmd == "OVERRIDE_STOP")  haOverrideActive = false;
     
-    // Check for thermal telemetry from S3 (Format: "THERMAL:s3_temp:amb_temp:psu_temp")
+    // Check for thermal telemetry from S3 (Format: "THERMAL:amb_temp:amp_temp:psu_temp")
     else if (cmd.startsWith("THERMAL:")) {
         int firstColon = cmd.indexOf(':', 8);
         int secondColon = cmd.indexOf(':', firstColon + 1);
         if (firstColon > 0 && secondColon > 0) {
-            envTempS3 = cmd.substring(8, firstColon).toFloat();
-            envTempAmb = cmd.substring(firstColon + 1, secondColon).toFloat();
+            tempAmb = cmd.substring(8, firstColon).toFloat();
+            tempAmp = cmd.substring(firstColon + 1, secondColon).toFloat();
             tempPsu = cmd.substring(secondColon + 1).toFloat();
         }
     }
@@ -403,25 +405,22 @@ void loop() {
     // Read RP2354 Internal Temperature
     float internalTemp = analogReadTemp();
     
-    // Read MA12070P Temps from Error/Status register (Reg 0x60 is status, actual temp derived or estimated)
-    // Note: MA12070P does not expose a raw Celsius temperature register natively, it exposes threshold flags.
-    // (0x60 bit 6 is temperature warning). For the sake of the Hottest-Spot logic, we will check the flags
-    // and assign a pseudo-temperature if it's running hot, or rely on an external LM75 placed on the Amp 
-    // (which is passed over UART from the S3). Since the user said "Amps: Über I2C aus Reg 0x60", we read it:
-    
-    float tempAmp = 40.0; // Base baseline
+    // MA12070P Temperature Check via I2C (Reg 0x60 status flags)
+    // 0x60 bit 6 is temperature warning. We assign a pseudo-temperature if it's running hot,
+    // but the primary thermal data comes from the external LM75 sensors passed over UART.
+    float internalAmpTemp = 40.0;
     Wire.beginTransmission(0x20);
     Wire.write(0x60);
     if (Wire.endTransmission(false) == 0 && Wire.requestFrom(0x20, 1) == 1) {
         uint8_t status = Wire.read();
-        if (status & 0x40) tempAmp = 85.0; // Temperature warning flag active!
+        if (status & 0x40) internalAmpTemp = 85.0; // Temperature warning flag active!
     }
     
     // Hottest-Spot Thermal Commander Logic
     float hottest = internalTemp;
+    if (internalAmpTemp > hottest) hottest = internalAmpTemp;
     if (tempAmp > hottest) hottest = tempAmp;
-    if (envTempS3 > hottest) hottest = envTempS3;
-    if (envTempAmb > hottest) hottest = envTempAmb;
+    if (tempAmb > hottest) hottest = tempAmb;
     if (tempPsu > hottest) hottest = tempPsu;
     
     // Send hottest/internal to S3

@@ -105,4 +105,4 @@ The mapping is derived from the module diagrams, the system architecture flow, a
 | **LED Control** | | |
 | - 1-Wire Data | GP20 | -> SN74AHCT125D -> WS2805 |
 | **UART (Flashing)** | | <- from ESP32-S3 |
-| - RX / TX | GP21 / GP22 | |
+| - RX / TX | GP21 / GP24 | |
