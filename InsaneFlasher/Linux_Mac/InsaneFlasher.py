@@ -88,7 +88,7 @@ class InsaneFlasher(ctk.CTk):
         super().__init__()
 
         # 1. FENSTER-SETUP
-        self.title("Insane Control Center V6")
+        self.title("Insane Control Center 2.1")
         self.geometry("800x700")
         self.configure(fg_color="#1a1a1a")
         
@@ -120,7 +120,7 @@ class InsaneFlasher(ctk.CTk):
             self.logo_label = ctk.CTkLabel(self.header_frame, text="ISS", font=("Roboto", 40, "bold"), text_color="#3b8ed0", width=80)
             self.logo_label.grid(row=0, column=0, rowspan=2, padx=(0, 20))
 
-        self.title_label = ctk.CTkLabel(self.header_frame, text="Insane Control Center V6", font=("Roboto", 26, "bold"), text_color="#ffffff")
+        self.title_label = ctk.CTkLabel(self.header_frame, text="Insane Control Center 2.1", font=("Roboto", 26, "bold"), text_color="#ffffff")
         self.title_label.grid(row=0, column=1, sticky="sw")
         
         # --- STATUS PUNKT (NEBEN DEM TITEL) ---
@@ -307,7 +307,7 @@ class InsaneFlasher(ctk.CTk):
         except: pass
 
         ctk.CTkLabel(info_frame, text="Insane Control Center", font=("Roboto", 24, "bold")).pack(pady=10)
-        ctk.CTkLabel(info_frame, text="Version 6.0.0\nTriple-Brain Architecture Hub", font=("Roboto", 14), text_color="#aaaaaa", justify="center").pack(pady=5)
+        ctk.CTkLabel(info_frame, text="Version 0.1.0\nTriple-Brain Architecture Hub", font=("Roboto", 14), text_color="#aaaaaa", justify="center").pack(pady=5)
 
         btn = ctk.CTkButton(info_frame, text="GitHub Repository", fg_color="#333333", height=40, command=lambda: webbrowser.open(GITHUB_URL))
         btn.pack(pady=20)
@@ -471,7 +471,7 @@ class InsaneFlasher(ctk.CTk):
             except: return "Offline"
 
         # Daten abrufen (ESPHome generiert URLs aus dem 'name' der Komponente)
-        # V6 Mapping Update
+        # 2.1 Mapping Update
         src = get_state("text_sensor", "active_audio_source")
         sys_status = get_state("text_sensor", "insane_system_status")
         t_amp = get_state("sensor", "ma12070p_temperature")
@@ -496,7 +496,7 @@ class InsaneFlasher(ctk.CTk):
             try:
                 # Fetch latest release info
                 release_info = requests.get(GITHUB_API_LATEST, timeout=3).json()
-                self.online_version = release_info.get("tag_name", "V6.0.0")
+                self.online_version = release_info.get("tag_name", "2.1.0.0")
                 # Look for specific assets if you like, else we will fall back to static logic for now.
                 self.github_assets = release_info.get("assets", [])
             except:

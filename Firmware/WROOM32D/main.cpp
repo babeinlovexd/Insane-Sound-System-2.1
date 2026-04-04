@@ -58,7 +58,7 @@ void setup() {
   Serial.begin(115200); // Used for proxy flashing and debugging
   Serial2.begin(115200, SERIAL_8N1, UART_RX, UART_TX); // Used purely for Metadata
 
-  Serial.println("Starting Insane Sound System V6 - BT Receiver");
+  Serial.println("Starting Insane Sound System 2.1 - BT Receiver");
 
   // Configure I2S
   // Set WROOM to I2S Master Mode (RP2354 acts as Slave via PIO)
@@ -96,7 +96,7 @@ void setup() {
   a2dp_sink.set_on_volumechange(volume_change_callback);
 
   // Start Bluetooth A2DP Sink
-  a2dp_sink.start("Insane_Audio_V6");
+  a2dp_sink.start("Insane_Audio_2.1");
 }
 
 void loop() {

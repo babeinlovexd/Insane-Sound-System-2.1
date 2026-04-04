@@ -1,6 +1,6 @@
-# Insane Sound System V6 - Pin Mapping
+# Insane Sound System 2.1 - Pin Mapping
 
-This document outlines the pin mapping for all 3 microcontrollers in the V6 system.
+This document outlines the pin mapping for all 3 microcontrollers in the 2.1 system.
 The mapping is derived from the module diagrams, the system architecture flow, and ensures logical separation of buses to avoid clashes.
 
 ## 1. ESP32-S3 (Main Controller & HA Bridge)
