@@ -1,0 +1,38 @@
+name: Build and Upload Firmwares
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Repository clonen
+        uses: actions/checkout@v4
+
+      - name: Python für PlatformIO einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: PlatformIO installieren
+        run: pip install platformio
+
+      - name: WROOM32D Firmware kompilieren
+        run: pio run -d Firmware/WROOM32D -e esp32dev
+
+      - name: RP2354A Firmware kompilieren
+        run: pio run -d Firmware/RP2354A -e rp2354
+
+      - name: Umbenennen und an Release anhängen
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Firmware/WROOM32D/.pio/build/esp32dev/firmware.bin#wroom.bin
+            Firmware/RP2354A/.pio/build/rp2354/firmware.bin#rp2354.bin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
