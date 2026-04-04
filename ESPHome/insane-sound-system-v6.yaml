@@ -91,16 +91,6 @@ esphome:
   project:
     name: "babeinlovexd.insane_sound_system_v6"
     version: "6.0.0"
-  on_boot:
-    priority: -100
-    then:
-      - delay: 60s
-      - uart.write:
-          id: uart_metadata
-          data: "GET_VER\n"
-      - uart.write:
-          id: uart_rp2354
-          data: "GET_VER\n"
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -745,16 +735,6 @@ text_sensor:
     id: bt_album
     name: "Bluetooth Album"
   - platform: template
-    name: "BL Firmware Version"
-    id: wroom_version
-    icon: "mdi:chip"
-
-  - platform: template
-    name: "RP2354 Firmware Version"
-    id: rp2354_version
-    icon: "mdi:chip"
-
-  - platform: template
     id: dsp_active_source
     name: "Active Audio Source"
 
@@ -814,6 +794,23 @@ text_sensor:
 # ##############################################################################
 # EXTERNE PYTHON KOMPONENTEN
 # ##############################################################################
+text:
+  - platform: template
+    name: "BL Firmware Version"
+    id: wroom_version
+    internal: true
+    optimistic: true
+    restore_value: true
+    initial_value: "V6.0.0"
+
+  - platform: template
+    name: "RP2354 Firmware Version"
+    id: rp2354_version
+    internal: true
+    optimistic: true
+    restore_value: true
+    initial_value: "V6.0.0"
+
 uart_reader:
   - id: wroom_reader
     uart_id: uart_metadata
@@ -823,7 +820,6 @@ uart_reader:
     stream_status: stream_status
     bt_conn_sensor: bt_connected
     bt_vol_sensor: bt_phone_vol
-    wroom_ver_sensor: wroom_version
   - id: dsp_reader
     uart_id: uart_rp2354
     status_sensor: dsp_active_source
@@ -831,7 +827,6 @@ uart_reader:
     fan_sensor: fan_speed
     fault_sensor: amp_fault
     sys_stat: system_status
-    rp_ver_sensor: rp2354_version
     is_flashing: rp2354_is_flashing
 
 stream_server:
@@ -843,6 +838,7 @@ stream_server:
 web_server:
   port: 80
   version: 3
+  include_internal: true
 
 # Template Buttons exposed to REST API to trigger flash/boot sequences
 button:

@@ -23,8 +23,6 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
   esphome::text_sensor::TextSensor *album_sensor_;
   esphome::binary_sensor::BinarySensor *bt_conn_sensor_;
   esphome::sensor::Sensor *bt_vol_sensor_;
-  esphome::text_sensor::TextSensor *wroom_ver_sensor_;
-  esphome::text_sensor::TextSensor *rp_ver_sensor_;
 
   CustomUARTReader(esphome::uart::UARTComponent *parent,
                    esphome::text_sensor::TextSensor *track,
@@ -38,10 +36,8 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
                    esphome::text_sensor::TextSensor *sys_stat,
                    esphome::binary_sensor::BinarySensor *bt_conn,
                    esphome::sensor::Sensor *bt_vol,
-                   esphome::text_sensor::TextSensor *wroom_ver,
-                   esphome::text_sensor::TextSensor *rp_ver,
                    bool *is_flashing)
-      : UARTDevice(parent), track_sensor_(track), artist_sensor_(artist), album_sensor_(album), status_sensor_(status), temp_sensor_(temp), fan_sensor_(fan), fault_sensor_(fault), stream_status_(stream_status), sys_stat_sensor_(sys_stat), bt_conn_sensor_(bt_conn), bt_vol_sensor_(bt_vol), wroom_ver_sensor_(wroom_ver), rp_ver_sensor_(rp_ver), is_flashing_(is_flashing) {}
+      : UARTDevice(parent), track_sensor_(track), artist_sensor_(artist), album_sensor_(album), status_sensor_(status), temp_sensor_(temp), fan_sensor_(fan), fault_sensor_(fault), stream_status_(stream_status), sys_stat_sensor_(sys_stat), bt_conn_sensor_(bt_conn), bt_vol_sensor_(bt_vol), is_flashing_(is_flashing) {}
 
   void setup() override {
     // nothing to do here
@@ -183,20 +179,6 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     if (s_line.find("ALBUM:") == 0) {
       if (album_sensor_) {
         album_sensor_->publish_state(s_line.substr(6));
-      }
-      return;
-    }
-
-    if (s_line.find("WROOM_VER:") == 0) {
-      if (wroom_ver_sensor_) {
-        wroom_ver_sensor_->publish_state(s_line.substr(10));
-      }
-      return;
-    }
-
-    if (s_line.find("RP_VER:") == 0) {
-      if (rp_ver_sensor_) {
-        rp_ver_sensor_->publish_state(s_line.substr(7));
       }
       return;
     }

@@ -387,10 +387,6 @@ void loop() {
             }
         }
     }
-    // Check for firmware version request
-    else if (cmd == "GET_VER") {
-        Serial1.printf("RP_VER:V6.0.0\n");
-    }
   }
   
   // Prio 2 (S/PDIF detection)
