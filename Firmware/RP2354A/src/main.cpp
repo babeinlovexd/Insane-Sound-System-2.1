@@ -75,49 +75,205 @@ uint sm_in_wlan;
 uint sm_in_bt;
 // uint sm_in_tv; // Uncomment when S/PDIF PIO assembly is integrated
 
-// DMA Channels
+// DMA Channels & Double Buffering for DSP
 int dma_in_chan;
 int dma_out_chan;
-uint32_t audio_buffer[256] __attribute__((aligned(1024))); // 256 * 4 = 1024 bytes
 
-// Biquad Filter Coefficients for Amp 2 (Subwoofer)
-// The S3 dictates these via UART
-float b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
-float z1_l = 0.0, z2_l = 0.0;
-float z1_r = 0.0, z2_r = 0.0;
+#define BUF_SIZE 256
+// 4 distinct buffers to prevent race conditions during DSP processing
+// Since we are interleaving Amp 1 and Amp 2 for a dual-output PIO,
+// 1 RX word (32-bit) generates 2 TX words (64-bit).
+// So TX buffers must be twice the size.
+uint32_t rx_ping_buffer[BUF_SIZE] __attribute__((aligned(1024)));
+uint32_t rx_pong_buffer[BUF_SIZE] __attribute__((aligned(1024)));
+uint32_t tx_ping_buffer[BUF_SIZE * 2] __attribute__((aligned(2048)));
+uint32_t tx_pong_buffer[BUF_SIZE * 2] __attribute__((aligned(2048)));
+
+volatile bool using_ping_for_rx = true;
+volatile bool process_ping_buffer = false;
+volatile bool process_pong_buffer = false;
+
+// Biquad Filter Coefficients for Amp 2 (Subwoofer Low-Pass)
+float sub_b0 = 1.0, sub_b1 = 0.0, sub_b2 = 0.0, sub_a1 = 0.0, sub_a2 = 0.0;
+float sub_z1 = 0.0, sub_z2 = 0.0; // Mono subwoofer
+float sub_gain = 1.0;
+
+// 5-Band EQ (Peaking Biquads) for Amp 1 (Front L/R)
+struct Biquad {
+    float b0, b1, b2, a1, a2;
+    float z1_l, z2_l; // Stereo left
+    float z1_r, z2_r; // Stereo right
+};
+
+Biquad eq_filters[5] = {
+    {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}
+};
+
+void update_eq_band(int band_idx, float gain_db) {
+    if (band_idx < 0 || band_idx > 4) return;
+
+    float freqs[5] = {60.0, 230.0, 910.0, 3600.0, 14000.0};
+    float w0 = 2.0 * 3.14159265 * freqs[band_idx] / 44100.0;
+    float A = pow(10, gain_db / 40.0);
+    float alpha = sin(w0) / (2.0 * 1.414); // Q approx 1.414
+
+    float a0 = 1.0 + alpha / A;
+    eq_filters[band_idx].b0 = (1.0 + alpha * A) / a0;
+    eq_filters[band_idx].b1 = (-2.0 * cos(w0)) / a0;
+    eq_filters[band_idx].b2 = (1.0 - alpha * A) / a0;
+    eq_filters[band_idx].a1 = (-2.0 * cos(w0)) / a0;
+    eq_filters[band_idx].a2 = (1.0 - alpha / A) / a0;
+}
+
 bool dsp_active = false;
 
-// We need an interrupt to apply DSP to the audio buffer
+// Fast bit interleaver: interleave Amp 1 bit and Amp 2 bit for the I2S dual master PIO.
+// Input format is 32-bit sample from Amp 1 and 32-bit sample from Amp 2.
+// Outputs two 32-bit words that will be fed sequentially to PIO TX FIFO.
+void interleave_32bit(uint32_t a1, uint32_t a2, uint32_t &out1, uint32_t &out2) {
+    // For RP2354A Cortex-M33, a loop or specialized bit-twiddling is needed.
+    // To process audio fast on Core 1 without inline asm, we just loop 32 times for 2 words.
+    // Or we just rely on standard duplicating if DSP isn't used to save CPU.
+    // But since Amp1 and Amp2 are different, we interleave:
+    out1 = 0; out2 = 0;
+    for (int i = 0; i < 16; i++) {
+        // First 16 bits -> out1
+        out1 |= ((a1 >> (31 - i)) & 1) << (31 - (i * 2));
+        out1 |= ((a2 >> (31 - i)) & 1) << (30 - (i * 2));
+        // Last 16 bits -> out2
+        out2 |= ((a1 >> (15 - i)) & 1) << (31 - (i * 2));
+        out2 |= ((a2 >> (15 - i)) & 1) << (30 - (i * 2));
+    }
+}
+
+// DMA IRQ ONLY sets pointers and flags. Zero Math.
 void __isr dma_handler() {
-    dma_hw->ints0 = 1u << dma_in_chan;
-    if (dsp_active) {
-        for (int i = 0; i < 256; i += 2) {
-            // Apply simple Biquad to right channel (Amp 2 Subwoofer, assuming interlaced L/R)
-            int32_t in_val = (int32_t)audio_buffer[i+1]; // Right channel
-            float in_f = (float)in_val;
-            float out_f = in_f * b0 + z1_r;
-            z1_r = in_f * b1 + z2_r - a1 * out_f;
-            z2_r = in_f * b2 - a2 * out_f;
-            audio_buffer[i+1] = (uint32_t)((int32_t)out_f);
+    dma_hw->ints0 = 1u << dma_in_chan; // Clear IRQ
+
+    // 1. Identify which buffers were just completed
+    uint32_t* next_rx_buffer = using_ping_for_rx ? rx_pong_buffer : rx_ping_buffer;
+    uint32_t* next_tx_buffer = using_ping_for_rx ? tx_pong_buffer : tx_ping_buffer;
+
+    // 2. Set up next DMA transfers IMMEDIATELY
+    // We must reset the transfer count, otherwise the channel halts when reaching 0
+    dma_channel_set_write_addr(dma_in_chan, next_rx_buffer, false);
+    dma_channel_set_trans_count(dma_in_chan, BUF_SIZE, true);
+
+    dma_channel_set_read_addr(dma_out_chan, next_tx_buffer, false);
+    dma_channel_set_trans_count(dma_out_chan, BUF_SIZE * 2, true);
+
+    // 3. Flag Core 1 to process the just-filled RX buffer into the just-read TX buffer
+    if (using_ping_for_rx) {
+        process_ping_buffer = true;
+    } else {
+        process_pong_buffer = true;
+    }
+
+    // Toggle the flag for the next cycle
+    using_ping_for_rx = !using_ping_for_rx;
+}
+
+// Audio Math Loop running exclusively on Core 1
+void setup1() {
+    // Core 1 Initialization if needed
+}
+
+void loop1() {
+    if (process_ping_buffer || process_pong_buffer) {
+        uint32_t* rx_buf = process_ping_buffer ? rx_ping_buffer : rx_pong_buffer;
+        uint32_t* tx_buf = process_ping_buffer ? tx_ping_buffer : tx_pong_buffer;
+
+        // Process audio
+        if (dsp_active) {
+            for (int i = 0; i < BUF_SIZE; i += 2) {
+                // Read Stereo L/R
+                int32_t in_val_l = (int32_t)rx_buf[i];
+                int32_t in_val_r = (int32_t)rx_buf[i+1];
+
+                float out_f_l_a1 = (float)in_val_l;
+                float out_f_r_a1 = (float)in_val_r;
+
+                // Stereo 5-Band EQ for Amp 1 (Front L/R)
+                for (int f = 0; f < 5; f++) {
+                    // Left Channel
+                    float temp_l = out_f_l_a1 * eq_filters[f].b0 + eq_filters[f].z1_l;
+                    eq_filters[f].z1_l = out_f_l_a1 * eq_filters[f].b1 + eq_filters[f].z2_l - eq_filters[f].a1 * temp_l;
+                    eq_filters[f].z2_l = out_f_l_a1 * eq_filters[f].b2 - eq_filters[f].a2 * temp_l;
+                    out_f_l_a1 = temp_l;
+
+                    // Right Channel
+                    float temp_r = out_f_r_a1 * eq_filters[f].b0 + eq_filters[f].z1_r;
+                    eq_filters[f].z1_r = out_f_r_a1 * eq_filters[f].b1 + eq_filters[f].z2_r - eq_filters[f].a1 * temp_r;
+                    eq_filters[f].z2_r = out_f_r_a1 * eq_filters[f].b2 - eq_filters[f].a2 * temp_r;
+                    out_f_r_a1 = temp_r;
+                }
+
+                // Low-Pass Filter for Amp 2 (Subwoofer) - Mono summed
+                // 1. Mix Front-Stereo-Signal to Mono
+                float in_mono = ((float)in_val_l + (float)in_val_r) * 0.5f;
+
+                // 2. Pass Mono mix through Low-Pass Filter
+                float out_f_mono_a2 = in_mono * sub_b0 + sub_z1;
+                sub_z1 = in_mono * sub_b1 + sub_z2 - sub_a1 * out_f_mono_a2;
+                sub_z2 = in_mono * sub_b2 - sub_a2 * out_f_mono_a2;
+
+                // Apply Subwoofer Gain
+                out_f_mono_a2 *= sub_gain;
+
+                // Cast back to 32-bit integers
+                uint32_t amp1_l = (uint32_t)((int32_t)out_f_l_a1);
+                uint32_t amp1_r = (uint32_t)((int32_t)out_f_r_a1);
+                uint32_t amp2_mono = (uint32_t)((int32_t)out_f_mono_a2);
+
+                // Interleave bits for DOUT1 and DOUT2 output PIO (out pins, 2)
+                uint32_t tx_l1, tx_l2, tx_r1, tx_r2;
+                interleave_32bit(amp1_l, amp2_mono, tx_l1, tx_l2); // L channel: Amp 1 L, Amp 2 Mono
+                interleave_32bit(amp1_r, amp2_mono, tx_r1, tx_r2); // R channel: Amp 1 R, Amp 2 Mono
+
+                // The TX buffer needs to be twice as big (BUF_SIZE * 2)
+                // because 32 bits from Amp1 + 32 bits from Amp2 = 64 bits interleaved.
+                tx_buf[i * 2] = tx_l1;
+                tx_buf[i * 2 + 1] = tx_l2;
+                tx_buf[i * 2 + 2] = tx_r1;
+                tx_buf[i * 2 + 3] = tx_r2;
+            }
+        } else {
+            // No DSP, pass through but still must interleave identical signals to support Dual Master PIO
+            for (int i = 0; i < BUF_SIZE; i += 2) {
+                uint32_t in_l = rx_buf[i];
+                uint32_t in_r = rx_buf[i+1];
+
+                uint32_t tx_l1, tx_l2, tx_r1, tx_r2;
+                interleave_32bit(in_l, in_l, tx_l1, tx_l2);
+                interleave_32bit(in_r, in_r, tx_r1, tx_r2);
+
+                tx_buf[i * 2] = tx_l1;
+                tx_buf[i * 2 + 1] = tx_l2;
+                tx_buf[i * 2 + 2] = tx_r1;
+                tx_buf[i * 2 + 3] = tx_r2;
+            }
         }
+
+        // Clear flag
+        if (process_ping_buffer) process_ping_buffer = false;
+        else process_pong_buffer = false;
     }
 }
 
 void switch_audio_dma_source(volatile void* pio_sm_rx_fifo_addr, uint dreq) {
-  // Stop current input DMA
   dma_channel_abort(dma_in_chan);
   
-  // Reconfigure pacing to match the new PIO SM
   dma_channel_config in_config = dma_channel_get_default_config(dma_in_chan);
   channel_config_set_transfer_data_size(&in_config, DMA_SIZE_32);
   channel_config_set_read_increment(&in_config, false);
   channel_config_set_write_increment(&in_config, true);
-  channel_config_set_ring(&in_config, true, 10);
-  channel_config_set_dreq(&in_config, dreq); // Set correct DREQ for pacing
-
+  channel_config_set_dreq(&in_config, dreq);
   dma_channel_set_config(dma_in_chan, &in_config, false);
   
-  // Restart input DMA to point to the new PIO SM FIFO
   dma_channel_set_read_addr(dma_in_chan, pio_sm_rx_fifo_addr, true);
 }
 
@@ -163,37 +319,33 @@ void setup_audio_dma() {
   dma_in_chan = dma_claim_unused_channel(true);
   dma_out_chan = dma_claim_unused_channel(true);
   
-  // Setup Input DMA (From active PIO RX FIFO to RAM buffer)
+  // Setup Input DMA
   dma_channel_config in_config = dma_channel_get_default_config(dma_in_chan);
   channel_config_set_transfer_data_size(&in_config, DMA_SIZE_32);
   channel_config_set_read_increment(&in_config, false);
   channel_config_set_write_increment(&in_config, true);
-  channel_config_set_ring(&in_config, true, 10); // 1024 bytes ring buffer
 
-  // Enable interrupt when input buffer is full
   dma_channel_set_irq0_enabled(dma_in_chan, true);
   irq_set_exclusive_handler(DMA_IRQ_0, dma_handler);
   irq_set_enabled(DMA_IRQ_0, true);
-  
-  // Setup Output DMA (From RAM buffer to Dual Master PIO TX FIFO)
+
+  // Setup Output DMA
   dma_channel_config out_config = dma_channel_get_default_config(dma_out_chan);
   channel_config_set_transfer_data_size(&out_config, DMA_SIZE_32);
   channel_config_set_read_increment(&out_config, true);
   channel_config_set_write_increment(&out_config, false);
-  channel_config_set_ring(&out_config, false, 10); // 1024 bytes ring buffer
   
-  // In order to not stop after the first 1024 words, set transfer count to a huge number,
-  // or set up a control block to loop forever. The simplest fix for free-running I2S
-  // without interrupts is setting a practically infinite transfer count (e.g. 0xFFFFFFFF).
+  // The Output DMA needs to transfer BUF_SIZE * 2 words because we expanded the 32-bit stream
+  // into an interleaved 64-bit dual-channel stream for the PIO 'out pins, 2' instruction.
   dma_channel_configure(dma_out_chan, &out_config, 
-      NULL, // Destination (Set later in main)
-      audio_buffer, 
-      0xFFFFFFFF, false);
+      NULL, // Destination (Set later)
+      tx_ping_buffer,
+      BUF_SIZE * 2, false);
       
   dma_channel_configure(dma_in_chan, &in_config, 
-      audio_buffer, 
-      NULL, // Source (Set later dynamically)
-      0xFFFFFFFF, false);
+      rx_ping_buffer,
+      NULL, // Source (Set dynamically)
+      BUF_SIZE, false);
 }
 
 void setup() {
@@ -338,7 +490,7 @@ void setup() {
   
   // Point output DMA to the Dual Master TX FIFO
   dma_channel_set_write_addr(dma_out_chan, (volatile void*)&pio1->txf[sm_out], false);
-  dma_channel_set_read_addr(dma_out_chan, audio_buffer, true);
+  dma_channel_set_read_addr(dma_out_chan, tx_ping_buffer, true);
 
   // 3. I2S-PIO-Clocks starten und stabilisieren lassen (passiert durch pio_sm_set_enabled)
   delay(50); // Stabilisierungs-Delay
@@ -431,10 +583,13 @@ void loop() {
             Wire.endTransmission();
         }
     }
-    // Check for LED color from UI (Format: "LED:r:g:b:w1:w2")
+    // Check for LED color from UI (Format: "LED: r:g:b:w1:w2" or "LED:r:g:b:w1:w2")
+    // The explicit user request format: z. B. LED: 255:0:0:100:100
     else if (cmd.startsWith("LED:")) {
         int r, g, b, w1, w2;
-        if (sscanf(cmd.c_str(), "LED:%d:%d:%d:%d:%d", &r, &g, &b, &w1, &w2) == 5) {
+        // Check for both with and without space
+        if (sscanf(cmd.c_str(), "LED: %d:%d:%d:%d:%d", &r, &g, &b, &w1, &w2) == 5 ||
+            sscanf(cmd.c_str(), "LED:%d:%d:%d:%d:%d", &r, &g, &b, &w1, &w2) == 5) {
             if (leds) {
                 leds->show(r, g, b, w1, w2);
             }
@@ -458,32 +613,41 @@ void loop() {
     else if (cmd.startsWith("CROSSOVER:")) {
         int crossoverFreq = cmd.substring(10).toInt();
         // The S3 calculates exact coefficients, but if it only sends the frequency,
-        // the RP calculates simple low-pass coefficients.
+        // the RP calculates simple low-pass coefficients for Subwoofer (Amp 2).
         float w0 = 2.0 * 3.14159265 * crossoverFreq / 44100.0;
         float alpha = sin(w0) / (2.0 * 0.707);
         float a0 = 1.0 + alpha;
-        b0 = (1.0 - cos(w0)) / 2.0 / a0;
-        b1 = (1.0 - cos(w0)) / a0;
-        b2 = (1.0 - cos(w0)) / 2.0 / a0;
-        a1 = -2.0 * cos(w0) / a0;
-        a2 = (1.0 - alpha) / a0;
+        sub_b0 = (1.0 - cos(w0)) / 2.0 / a0;
+        sub_b1 = (1.0 - cos(w0)) / a0;
+        sub_b2 = (1.0 - cos(w0)) / 2.0 / a0;
+        sub_a1 = -2.0 * cos(w0) / a0;
+        sub_a2 = (1.0 - alpha) / a0;
         dsp_active = true;
         Serial.printf("Crossover active: %d Hz\n", crossoverFreq);
     }
     // Check for EQ logic (Format: "EQ_BASS:x")
     else if (cmd.startsWith("EQ_BASS:")) {
         int eqBass = cmd.substring(8).toInt();
-        // Adjust bass gain dynamically
-        float gain = 1.0 + (eqBass * 0.1); // +1 unit = +10% gain
-        b0 *= gain;
-        b1 *= gain;
-        b2 *= gain;
+        // Adjust bass gain dynamically for Subwoofer
+        sub_gain = 1.0 + (eqBass * 0.1); // +1 unit = +10% gain
         dsp_active = true;
         Serial.printf("EQ_BASS active: %d\n", eqBass);
     }
+    // Check for 5-Band EQ logic for Amp 1 (Format: "EQ_BAND:band_index:gain_db")
+    else if (cmd.startsWith("EQ_BAND:")) {
+        int band;
+        float gain_db; // -10 to +10
+        if (sscanf(cmd.c_str(), "EQ_BAND:%d:%f", &band, &gain_db) == 2) {
+            if (band >= 1 && band <= 5) {
+                update_eq_band(band - 1, gain_db);
+                dsp_active = true;
+                Serial.printf("EQ_BAND %d set to %.2f dB\n", band, gain_db);
+            }
+        }
+    }
     // Direct Biquad coefficients from S3 (Format: "BIQUAD:b0:b1:b2:a1:a2")
     else if (cmd.startsWith("BIQUAD:")) {
-        sscanf(cmd.c_str(), "BIQUAD:%f:%f:%f:%f:%f", &b0, &b1, &b2, &a1, &a2);
+        sscanf(cmd.c_str(), "BIQUAD:%f:%f:%f:%f:%f", &sub_b0, &sub_b1, &sub_b2, &sub_a1, &sub_a2);
         dsp_active = true;
         Serial.println("Biquad coefficients updated from S3");
     }

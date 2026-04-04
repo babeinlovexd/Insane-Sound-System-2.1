@@ -107,7 +107,10 @@ public:
     }
 
     void show(uint8_t r, uint8_t g, uint8_t b, uint8_t w1, uint8_t w2) {
-        // Send to all LEDs. The WS2805 takes R, G, B, W1, W2.
+        // Send to all LEDs. The WS2805 takes R, G, B, W1, W2 (5 Kanäle: 40-Bit Datenstruktur pro LED).
+        // Since sm_config_set_out_shift uses shift_right=false (MSB first) and autopull at 8 bits,
+        // shifting left by 24 places the 8-bit value in the highest byte of the 32-bit word,
+        // meaning it gets shifted out MSB first perfectly.
         for (uint i = 0; i < num_leds_; i++) {
             pio_sm_put_blocking(pio_, sm_, (uint32_t)r << 24);
             pio_sm_put_blocking(pio_, sm_, (uint32_t)g << 24);
@@ -115,7 +118,7 @@ public:
             pio_sm_put_blocking(pio_, sm_, (uint32_t)w1 << 24);
             pio_sm_put_blocking(pio_, sm_, (uint32_t)w2 << 24);
         }
-        // Wait for reset (> 280us)
+        // Wait for reset (> 280us as per specification, we use 300us to be safe)
         sleep_us(300);
     }
 };

@@ -280,6 +280,29 @@ sensor:
       if (isnan(t3)) t3 = 0;
       if (isnan(t4)) t4 = 0;
       return std::max({t1, t2, t3, t4});
+    on_value:
+      - lambda: |-
+          // Calculate perfect fan curve
+          float hottest = x;
+          int fan_speed_cmd = 0;
+          if (hottest > 70.0) {
+            fan_speed_cmd = 100;
+          } else if (hottest > 60.0) {
+            fan_speed_cmd = 60;
+          } else if (hottest > 50.0) {
+            fan_speed_cmd = 35; // Min Power is 30, so 35 is safe
+          } else if (hottest < 48.0) {
+            fan_speed_cmd = 0; // Turn off
+          } else {
+            // Hysteresis, keep previous speed
+            fan_speed_cmd = id(fan_speed).state;
+            if (isnan(fan_speed_cmd)) fan_speed_cmd = 0;
+          }
+
+          char fan_buf[20];
+          sprintf(fan_buf, "FAN:%d\n", fan_speed_cmd);
+          id(uart_rp2354).write_str(fan_buf);
+          id(fan_speed).publish_state(fan_speed_cmd);
 
 interval:
   - interval: 10s
@@ -470,6 +493,137 @@ number:
             data:
               entity_id: ${ha_player_id}
               volume_level: !lambda "return x / 100.0;"
+
+  # Master Volume Limit
+  - platform: template
+    name: "Master Lautstärke Limit"
+    id: vol_limit_slider
+    icon: "mdi:volume-source"
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 100
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            char buf[30];
+            sprintf(buf, "VOL_LIMIT:%.0f\n", x);
+            id(uart_rp2354).write_str(buf);
+
+  # DSP Crossover & EQ controls exposed to Home Assistant
+  - platform: template
+    name: "Subwoofer Crossover Frequenz"
+    id: crossover_slider
+    icon: "mdi:tune"
+    min_value: 40
+    max_value: 200
+    step: 5
+    initial_value: 80
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            char buf[30];
+            sprintf(buf, "CROSSOVER:%.0f\n", x);
+            id(uart_rp2354).write_str(buf);
+
+  - platform: template
+    name: "Subwoofer Bass EQ"
+    id: eq_bass_slider
+    icon: "mdi:equalizer"
+    min_value: 0
+    max_value: 10
+    step: 1
+    initial_value: 0
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            char buf[30];
+            sprintf(buf, "EQ_BASS:%.0f\n", x);
+            id(uart_rp2354).write_str(buf);
+
+  # 5-Band EQ Front L/R
+  - platform: template
+    name: "Front EQ Band 1 (60Hz)"
+    id: eq_band_1
+    icon: "mdi:equalizer"
+    min_value: -10
+    max_value: 10
+    step: 1
+    initial_value: 0
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            char buf[30];
+            sprintf(buf, "EQ_BAND:1:%.0f\n", x);
+            id(uart_rp2354).write_str(buf);
+
+  - platform: template
+    name: "Front EQ Band 2 (230Hz)"
+    id: eq_band_2
+    icon: "mdi:equalizer"
+    min_value: -10
+    max_value: 10
+    step: 1
+    initial_value: 0
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            char buf[30];
+            sprintf(buf, "EQ_BAND:2:%.0f\n", x);
+            id(uart_rp2354).write_str(buf);
+
+  - platform: template
+    name: "Front EQ Band 3 (910Hz)"
+    id: eq_band_3
+    icon: "mdi:equalizer"
+    min_value: -10
+    max_value: 10
+    step: 1
+    initial_value: 0
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            char buf[30];
+            sprintf(buf, "EQ_BAND:3:%.0f\n", x);
+            id(uart_rp2354).write_str(buf);
+
+  - platform: template
+    name: "Front EQ Band 4 (3.6kHz)"
+    id: eq_band_4
+    icon: "mdi:equalizer"
+    min_value: -10
+    max_value: 10
+    step: 1
+    initial_value: 0
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            char buf[30];
+            sprintf(buf, "EQ_BAND:4:%.0f\n", x);
+            id(uart_rp2354).write_str(buf);
+
+  - platform: template
+    name: "Front EQ Band 5 (14kHz)"
+    id: eq_band_5
+    icon: "mdi:equalizer"
+    min_value: -10
+    max_value: 10
+    step: 1
+    initial_value: 0
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            char buf[30];
+            sprintf(buf, "EQ_BAND:5:%.0f\n", x);
+            id(uart_rp2354).write_str(buf);
 
   # Rotary Encoder (Direct inputs)
   - platform: gpio
@@ -841,6 +995,19 @@ text_sensor:
     name: "Insane System Status"
     on_value:
       - script.execute: update_status_leds
+
+  - platform: custom
+    lambda: |-
+      auto my_custom_sensor = new UartReadLineSensor(id(uart_rp2354));
+      App.register_component(my_custom_sensor);
+      return {my_custom_sensor->temp_rp_sensor, my_custom_sensor->temp_amp_sensor};
+    sensors:
+      - name: "RP2354 Temp (UART)"
+        id: temp_rp_uart
+        unit_of_measurement: "°C"
+      - name: "Amp Temp (UART)"
+        id: temp_amp_uart
+        unit_of_measurement: "°C"
 
 # ##############################################################################
 # EXTERNE PYTHON KOMPONENTEN
