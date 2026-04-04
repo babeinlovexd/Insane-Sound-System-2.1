@@ -438,26 +438,33 @@ void loop() {
   // ---------------------------------------------------------
   static unsigned long lastBackgroundTask = 0;
   if (millis() - lastBackgroundTask > 2000) {
-    // Monitor Amp Faults
-    if (digitalRead(AMP1_FAULT) == LOW) {
-      Serial.println("Amp 1 Fault detected!");
-    }
-    if (digitalRead(AMP2_FAULT) == LOW) {
-      Serial.println("Amp 2 Fault detected!");
-    }
-    
     // Read RP2354 Internal Temperature
     float internalTemp = analogReadTemp();
     
-    // MA12070P Temperature Check via I2C (Reg 0x60 status flags)
-    // 0x60 bit 6 is temperature warning. We assign a pseudo-temperature if it's running hot,
-    // but the primary thermal data comes from the external LM75 sensors passed over UART.
+    // I2C Fault & Status Polling from MA12070P (Address 0x20)
+    uint8_t reg71 = 0; // error_now
+    uint8_t reg1B = 0; // monitor_clip
     float internalAmpTemp = 40.0;
+
+    // Read Reg 0x71
+    Wire.beginTransmission(0x20);
+    Wire.write(0x71);
+    if (Wire.endTransmission(false) == 0 && Wire.requestFrom(0x20, 1) == 1) {
+        reg71 = Wire.read();
+    }
+
+    // Read Reg 0x1B
+    Wire.beginTransmission(0x20);
+    Wire.write(0x1B);
+    if (Wire.endTransmission(false) == 0 && Wire.requestFrom(0x20, 1) == 1) {
+        reg1B = Wire.read();
+    }
+
+    // Read Reg 0x60
     Wire.beginTransmission(0x20);
     Wire.write(0x60);
     if (Wire.endTransmission(false) == 0 && Wire.requestFrom(0x20, 1) == 1) {
-        uint8_t status = Wire.read();
-        if (status & 0x40) internalAmpTemp = 85.0; // Temperature warning flag active!
+        if (Wire.read() & 0x40) internalAmpTemp = 85.0;
     }
     
     // Hottest-Spot Thermal Commander Logic
@@ -467,9 +474,23 @@ void loop() {
     if (tempAmb > hottest) hottest = tempAmb;
     if (tempPsu > hottest) hottest = tempPsu;
     
-    // Send hottest/internal to S3
+    // Determine System Status String based on priorities
+    String sysStatus = "ok";
+
+    if (reg71 & 0x01) sysStatus = "OCP";
+    else if (reg71 & 0x02) sysStatus = "OTP";
+    else if (reg71 & 0x04) sysStatus = "UVLO";
+    else if (reg71 & 0x08) sysStatus = "OVLO";
+    else if (reg71 & 0x10) sysStatus = "VCF";
+    else if (reg71 & 0x20) sysStatus = "DC-PROT";
+    else if (reg71 & 0x40) sysStatus = "MCLK-ERR";
+    else if (reg1B & 0x03) sysStatus = "CLIPPING";
+    else if (hottest > 80.0) sysStatus = "HOT";
+
+    // Send to S3
     Serial1.printf("TEMP:%.1f\n", internalTemp);
-    
+    Serial1.printf("SYS_STAT:%s\n", sysStatus.c_str());
+
     bool fault = (digitalRead(AMP1_FAULT) == LOW || digitalRead(AMP2_FAULT) == LOW);
     Serial1.printf("FAULT:%d\n", fault ? 1 : 0);
 

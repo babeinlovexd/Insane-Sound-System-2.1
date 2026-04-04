@@ -80,18 +80,17 @@
 # 🚩USER-KONFIGURATION (Hier die Entität vom ISS anpassen, falls nötig!)🚩
 # =====================================================================
 substitutions:
-  name: insane-sound-system-v6
-  friendly_name: Insane Sound System V6 (Master)
   ha_player_id: "media_player.insane_sound_system" #<---- ID hier anpassen!
 
+# ##############################################################################
+# SYSTEM & WLAN
+# ##############################################################################
 esphome:
-  name: ${name}
-  friendly_name: ${friendly_name}
+  name: insane-sound-system-v6
+  friendly_name: "Insane Sound System V6 (Master)"
   project:
     name: "babeinlovexd.insane_sound_system_v6"
     version: "6.0.0"
-  includes:
-    - uart_reader.h
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -101,11 +100,10 @@ esp32:
   flash_size: 16MB
 
 external_components:
-  - source: components
   - source:
       type: git
       url: https://github.com/babeinlovexd/Insane-Sound-System
-    components: [ stream_server ]
+    components: [ stream_server, uart_reader ]
     refresh: 0s
   - source:
       type: git
@@ -158,15 +156,28 @@ color:
     red: 100%
     green: 0%
     blue: 0%
+  - id: my_green
+    red: 0%
+    green: 100%
+    blue: 0%
 
-# I2C Bus for UI Expander and Temp Sensor
+# ##############################################################################
+# BUS-SYSTEME (I2C, SPI)
+# ##############################################################################
 i2c:
   sda: GPIO8
   scl: GPIO18
   scan: true
   id: i2c_bus
 
-# Thermal Management (LM75AD Sensors and RP2354)
+# SPI Bus for Display
+spi:
+  clk_pin: GPIO12
+  mosi_pin: GPIO11
+
+# ##############################################################################
+# SENSOREN (Temperatur, Lüfter, System)
+# ##############################################################################
 sensor:
   # Environmental Temp
   - platform: lm75
@@ -234,7 +245,9 @@ interval:
           sprintf(buf, "THERMAL:%.1f:%.1f:%.1f\n", amb, amp, psu);
           id(uart_rp2354).write_str(buf);
 
-# PCF8574T UI Expander (Buttons/LEDs)
+# ##############################################################################
+# HARDWARE-STEUERUNG (Switches, Expander, Buttons)
+# ##############################################################################
 pcf8574:
   - id: pcf_ui
     address: 0x20
@@ -288,15 +301,41 @@ binary_sensor:
       number: 2
       mode: INPUT_PULLUP
       inverted: true
+    on_press:
+      - uart.write:
+          id: uart_metadata
+          data: "NEXT\n"
+      - homeassistant.service:
+          service: media_player.media_next_track
+          data:
+            entity_id: ${ha_player_id}
+switch:
   - platform: gpio
     name: "Button 2"
     pin:
       pcf8574: pcf_ui
-      number: 3
+      number: 4
       mode: INPUT_PULLUP
       inverted: true
+    on_press:
+      - uart.write:
+          id: uart_metadata
+          data: "PREV\n"
+      - homeassistant.service:
+          service: media_player.media_previous_track
+          data:
+            entity_id: ${ha_player_id}
 
-# Rotary Encoder (Direct inputs)
+  - platform: gpio
+    name: "Red LED"
+    id: led_red
+    pin:
+      pcf8574: pcf_ui
+      number: 3
+      mode: OUTPUT
+      inverted: true
+
+  # Rotary Encoder (Direct inputs)
   - platform: gpio
     name: "Encoder Button"
     pin:
@@ -354,6 +393,12 @@ sensor:
           char buf[20];
           sprintf(buf, "VOL:%.0f\n", x);
           id(uart_rp2354).write_str(buf);
+
+          // Also sync volume to the Bluetooth chip
+          char buf_bt[25];
+          sprintf(buf_bt, "SET_BT_VOL:%.0f\n", x);
+          id(uart_metadata).write_str(buf_bt);
+
       - homeassistant.service:
           service: media_player.volume_set
           data:
@@ -361,11 +406,9 @@ sensor:
             volume_level: !lambda "return x / 100.0;"
       - script.execute: timer_volume
 
-# SPI Bus for Display
-spi:
-  clk_pin: GPIO12
-  mosi_pin: GPIO11
-
+# ##############################################################################
+# DISPLAY (ST7789) & UI GLOBALS
+# ##############################################################################
 globals:
   - id: ui_mode
     type: int
@@ -461,9 +504,11 @@ display:
           }
 
           // --- UNTERE LEISTE (Y: 60) ---
-          // Fehler links unten
-          if (id(amp_fault).state) {
-            it.print(0, 60, id(font_small), id(my_red), TextAlign::TOP_LEFT, "FAULT");
+          // Fehler/Status links unten
+          if (id(system_status).state != "ok") {
+            it.print(0, 60, id(font_small), id(my_red), TextAlign::TOP_LEFT, id(system_status).state.c_str());
+          } else {
+            it.print(0, 60, id(font_small), id(my_green), TextAlign::TOP_LEFT, "OK");
           }
 
           // Source zentriert
@@ -483,7 +528,9 @@ font:
     id: font_large
     size: 24
 
-# I2S Audio Output (To RP2354)
+# ##############################################################################
+# AUDIO & MEDIA PLAYER (WLAN / Home Assistant)
+# ##############################################################################
 i2s_audio:
   - id: i2s_bus
     i2s_bclk_pin: GPIO4
@@ -533,42 +580,24 @@ light:
     color_interlock: true
     turn_on_action:
       - lambda: |-
-          // template light expects an action, but on_state covers actual updates.
-          // We must define turn_on_action and turn_off_action minimally.
+          // Variables red, green, blue, cold_white, warm_white are passed in by ESPHome.
+          char buf[64];
+          sprintf(buf, "LED:%u:%u:%u:%u:%u\n",
+            (uint8_t)(red * 255),
+            (uint8_t)(green * 255),
+            (uint8_t)(blue * 255),
+            (uint8_t)(cold_white * 255),
+            (uint8_t)(warm_white * 255));
+          id(uart_rp2354).write_str(buf);
     turn_off_action:
       - lambda: |-
           char buf[64];
           sprintf(buf, "LED:0:0:0:0:0\n");
           id(uart_rp2354).write_str(buf);
-    set_level_action:
-      - lambda: |-
-          // Empty, handled by on_state
-    set_rgb_action:
-      - lambda: |-
-          // Empty, handled by on_state
-    set_white_action:
-      - lambda: |-
-          // Empty, handled by on_state
-    set_color_temperature_action:
-      - lambda: |-
-          // Empty, handled by on_state
-    on_state:
-      - lambda: |-
-          float r, g, b, cw, ww;
-          id(status_led).current_values_as_rgbww(&r, &g, &b, &cw, &ww);
 
-          uint8_t red_val = (uint8_t)(r * 255);
-          uint8_t green_val = (uint8_t)(g * 255);
-          uint8_t blue_val = (uint8_t)(b * 255);
-          uint8_t cw_val = (uint8_t)(cw * 255);
-          uint8_t ww_val = (uint8_t)(ww * 255);
-
-          // Only send if turned on.
-          // If state is off, the turn_off_action already handles it, but current_values_as_rgbww might still return last values.
-          // Or wait, in ESPHome, if a light is off, its brightness is zero, so r,g,b,cw,ww should be 0.
-          char buf[64];
-          sprintf(buf, "LED:%u:%u:%u:%u:%u\n", red_val, green_val, blue_val, cw_val, ww_val);
-          id(uart_rp2354).write_str(buf);
+# ##############################################################################
+# UARTS & PROXY FLASHING
+# ##############################################################################
 
 # Global variables to track flash state and pause metadata/status parsers
 # to prevent stealing bytes from the stream_server during proxy flashing.
@@ -580,7 +609,6 @@ globals:
     type: bool
     initial_value: "false"
 
-# Multi UART Setup for independent Proxy Flashing and Metadata
 uart:
   - id: uart_wroom
     tx_pin: GPIO42
@@ -638,24 +666,48 @@ text_sensor:
     id: stream_status
     name: "Stream Status"
     # Handled by UART reader (BT) and Home Assistant bridges (WLAN)
+    on_value:
+      - if:
+          condition:
+            lambda: 'return x == "playing";'
+          then:
+            - globals.set:
+                id: display_awake
+                value: 'true'
+            - script.stop: timer_sleep
+          else:
+            - script.execute: timer_sleep
 
-# Custom Component to read lines from UART and populate sensors
-custom_component:
-  - lambda: |-
-      auto *wroom_reader = new custom_uart_reader::CustomUARTReader(
-          id(uart_metadata), id(bt_track), id(bt_artist), nullptr, nullptr, nullptr, nullptr, id(stream_status), nullptr);
-          // Note: WROOM Metadata UART is isolated, no proxy byte stealing is possible.
+  - platform: template
+    id: system_status
+    name: "Insane System Status"
+    on_value:
+      - if:
+          condition:
+            lambda: 'return x == "ok";'
+          then:
+            - switch.turn_off: led_red
+          else:
+            - switch.turn_on: led_red
 
-      auto *dsp_reader = new custom_uart_reader::CustomUARTReader(
-          id(uart_rp2354), nullptr, nullptr, id(dsp_active_source), id(rp2354_temperature), id(fan_speed), id(amp_fault), nullptr, &id(rp2354_is_flashing));
-          // DSP shares UART2 for Metadata & Proxy, so we pass the flashing boolean to pause reading.
+# ##############################################################################
+# EXTERNE PYTHON KOMPONENTEN
+# ##############################################################################
+uart_reader:
+  - id: wroom_reader
+    uart_id: uart_metadata
+    track_sensor: bt_track
+    artist_sensor: bt_artist
+    stream_status: stream_status
+  - id: dsp_reader
+    uart_id: uart_rp2354
+    status_sensor: dsp_active_source
+    temp_sensor: rp2354_temperature
+    fan_sensor: fan_speed
+    fault_sensor: amp_fault
+    sys_stat: system_status
+    is_flashing: rp2354_is_flashing
 
-      App.register_component(wroom_reader);
-      App.register_component(dsp_reader);
-      return {wroom_reader, dsp_reader};
-
-# Custom Stream Servers (Uses the external component defined in components/stream_server)
-# As explicitly requested, this embeds your modified V5 stream_server logic.
 stream_server:
   - uart_id: uart_wroom
     port: 6666
@@ -689,6 +741,35 @@ button:
       - delay: 50ms
       - switch.turn_on: wroom_en
       - lambda: 'id(wroom_is_flashing) = false;'
+
+  - platform: template
+    name: "BL Play-Pause"
+    icon: "mdi:play-pause"
+    on_press:
+      - lambda: |-
+          if (id(stream_status).state == "playing") {
+            id(uart_metadata).write_str("PAUSE\n");
+            id(stream_status).publish_state("paused");
+          } else {
+            id(uart_metadata).write_str("PLAY\n");
+            id(stream_status).publish_state("playing");
+          }
+
+  - platform: template
+    name: "BL Nächster Titel"
+    icon: "mdi:skip-next"
+    on_press:
+      - uart.write:
+          id: uart_metadata
+          data: "NEXT\n"
+
+  - platform: template
+    name: "BL Vorheriger Titel"
+    icon: "mdi:skip-previous"
+    on_press:
+      - uart.write:
+          id: uart_metadata
+          data: "PREV\n"
 
   - platform: template
     name: "RP2354 Flash Mode"
