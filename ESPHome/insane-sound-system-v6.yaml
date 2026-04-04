@@ -521,6 +521,55 @@ media_player:
       format: FLAC
       num_channels: 2
 
+# ##############################################################################
+# BELEUCHTUNG (WS2805 über UART)
+# ##############################################################################
+
+light:
+  - platform: template
+    name: "Insane LEDs"
+    id: status_led
+    type: RGBWW
+    color_interlock: true
+    turn_on_action:
+      - lambda: |-
+          // template light expects an action, but on_state covers actual updates.
+          // We must define turn_on_action and turn_off_action minimally.
+    turn_off_action:
+      - lambda: |-
+          char buf[64];
+          sprintf(buf, "LED:0:0:0:0:0\n");
+          id(uart_rp2354).write_str(buf);
+    set_level_action:
+      - lambda: |-
+          // Empty, handled by on_state
+    set_rgb_action:
+      - lambda: |-
+          // Empty, handled by on_state
+    set_white_action:
+      - lambda: |-
+          // Empty, handled by on_state
+    set_color_temperature_action:
+      - lambda: |-
+          // Empty, handled by on_state
+    on_state:
+      - lambda: |-
+          float r, g, b, cw, ww;
+          id(status_led).current_values_as_rgbww(&r, &g, &b, &cw, &ww);
+
+          uint8_t red_val = (uint8_t)(r * 255);
+          uint8_t green_val = (uint8_t)(g * 255);
+          uint8_t blue_val = (uint8_t)(b * 255);
+          uint8_t cw_val = (uint8_t)(cw * 255);
+          uint8_t ww_val = (uint8_t)(ww * 255);
+
+          // Only send if turned on.
+          // If state is off, the turn_off_action already handles it, but current_values_as_rgbww might still return last values.
+          // Or wait, in ESPHome, if a light is off, its brightness is zero, so r,g,b,cw,ww should be 0.
+          char buf[64];
+          sprintf(buf, "LED:%u:%u:%u:%u:%u\n", red_val, green_val, blue_val, cw_val, ww_val);
+          id(uart_rp2354).write_str(buf);
+
 # Global variables to track flash state and pause metadata/status parsers
 # to prevent stealing bytes from the stream_server during proxy flashing.
 globals:
