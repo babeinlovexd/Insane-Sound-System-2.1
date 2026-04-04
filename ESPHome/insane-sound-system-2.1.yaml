@@ -1,5 +1,5 @@
 # ##############################################################################
-# HARDWARE-PIN-BELEGUNG V6 (Main ESP32-S3):
+# HARDWARE-PIN-BELEGUNG 2.1 (Main ESP32-S3):
 #
 # [AUDIO - I2S]
 # - GPIO 4           : I2S BCLK  -> Zu RP2354 GP0
@@ -34,7 +34,7 @@
 # - GPIO 48          : RP2354 BOOTSEL
 #
 # ##############################################################################
-# HARDWARE-PIN-BELEGUNG V6 (Bluetooth Chip ESP32-WROOM-32D):
+# HARDWARE-PIN-BELEGUNG 2.1 (Bluetooth Chip ESP32-WROOM-32D):
 #
 # [I2S AUDIO SINK]
 # - GPIO 26          : I2S BCLK  -> Zu RP2354 GP3
@@ -49,7 +49,7 @@
 # - GPIO 16 / 17     : UART2 RX/TX (Metadata)    <-> ESP32-S3 (GPIO 44/43)
 #
 # ##############################################################################
-# HARDWARE-PIN-BELEGUNG V6 (DSP / Audio Router RP2354A):
+# HARDWARE-PIN-BELEGUNG 2.1 (DSP / Audio Router RP2354A):
 #
 # [I2S AUDIO IN]
 # - GP0 / GP1 / GP2  : I2S IN 1 (WLAN/HA) <- Von ESP32-S3
@@ -86,11 +86,11 @@ substitutions:
 # SYSTEM & WLAN
 # ##############################################################################
 esphome:
-  name: insane-sound-system-v6
-  friendly_name: "Insane Sound System V6 (Master)"
+  name: insane-sound-system-2.1
+  friendly_name: "Insane Sound System 2.1 (Master)"
   project:
-    name: "babeinlovexd.insane_sound_system_v6"
-    version: "6.0.0"
+    name: "babeinlovexd.insane_sound_system_2.1"
+    version: "0.1.0"
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -808,7 +808,7 @@ text:
     internal: true
     optimistic: true
     restore_value: true
-    initial_value: "V6.0.0"
+    initial_value: "2.1.0.0"
 
   - platform: template
     name: "RP2354 Firmware Version"
@@ -817,7 +817,7 @@ text:
     internal: true
     optimistic: true
     restore_value: true
-    initial_value: "V6.0.0"
+    initial_value: "2.1.0.0"
 
 uart_reader:
   - id: wroom_reader
