@@ -40,7 +40,7 @@
 // Amp Control/Status
 #define AMP1_FAULT 14
 #define AMP2_FAULT 15
-#define AMP1_EN    16
+#define AMP1_EN    20 // Swapped with LED_DATA
 #define AMP2_EN    17
 
 // PWM Outputs
@@ -48,7 +48,7 @@
 #define BL_PWM     19
 
 // WS2805 LED Data (1-Wire)
-#define LED_DATA   20
+#define LED_DATA   16 // Swapped with AMP1_EN as requested
 
 // Inputs & Status
 #define BT_ACTIVE_IN 26
@@ -80,6 +80,28 @@ int dma_in_chan;
 int dma_out_chan;
 uint32_t audio_buffer[256] __attribute__((aligned(1024))); // 256 * 4 = 1024 bytes
 
+// Biquad Filter Coefficients for Amp 2 (Subwoofer)
+// The S3 dictates these via UART
+float b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
+float z1_l = 0.0, z2_l = 0.0;
+float z1_r = 0.0, z2_r = 0.0;
+bool dsp_active = false;
+
+// We need an interrupt to apply DSP to the audio buffer
+void __isr dma_handler() {
+    dma_hw->ints0 = 1u << dma_in_chan;
+    if (dsp_active) {
+        for (int i = 0; i < 256; i += 2) {
+            // Apply simple Biquad to right channel (Amp 2 Subwoofer, assuming interlaced L/R)
+            int32_t in_val = (int32_t)audio_buffer[i+1]; // Right channel
+            float in_f = (float)in_val;
+            float out_f = in_f * b0 + z1_r;
+            z1_r = in_f * b1 + z2_r - a1 * out_f;
+            z2_r = in_f * b2 - a2 * out_f;
+            audio_buffer[i+1] = (uint32_t)((int32_t)out_f);
+        }
+    }
+}
 
 void switch_audio_dma_source(volatile void* pio_sm_rx_fifo_addr, uint dreq) {
   // Stop current input DMA
@@ -147,6 +169,11 @@ void setup_audio_dma() {
   channel_config_set_read_increment(&in_config, false);
   channel_config_set_write_increment(&in_config, true);
   channel_config_set_ring(&in_config, true, 10); // 1024 bytes ring buffer
+
+  // Enable interrupt when input buffer is full
+  dma_channel_set_irq0_enabled(dma_in_chan, true);
+  irq_set_exclusive_handler(DMA_IRQ_0, dma_handler);
+  irq_set_enabled(DMA_IRQ_0, true);
   
   // Setup Output DMA (From RAM buffer to Dual Master PIO TX FIFO)
   dma_channel_config out_config = dma_channel_get_default_config(dma_out_chan);
@@ -180,6 +207,7 @@ void setup() {
   // Setup PWM Pins
   pinMode(FAN_PWM, OUTPUT);
   pinMode(BL_PWM, OUTPUT);
+  analogWriteFreq(100); // 100 Hz for FAN PWM
   analogWrite(FAN_PWM, 0); // Off initially
   analogWrite(BL_PWM, 255); // Full brightness initially
 
@@ -219,6 +247,19 @@ void setup() {
     Wire.beginTransmission(addr);
     Wire.write(0x25); 
     Wire.write(0x00); // 00000000: I2S, 24-bit
+    Wire.endTransmission();
+
+    // Set Audio Routing/Mode
+    // According to reviewer, audio routing (PBTL) is usually handled in Register 0x25 (audio_in_mode)
+    Wire.beginTransmission(addr);
+    Wire.write(0x25);
+    if (addr == 0x21) {
+        // Amp 2 (Subwoofer) zwingend auf "PBTL"
+        Wire.write(0x01); // Assumed PBTL setting
+    } else {
+        // Amp 1 (Front L/R) im normalen Stereo-Modus (BTL)
+        Wire.write(0x00); // Standard I2S, 24-bit
+    }
     Wire.endTransmission();
 
     // Set Power Mode Profile (Reg 0x2D)
@@ -358,9 +399,6 @@ void loop() {
         int vol = cmd.substring(4).toInt();
         uint8_t amp_addresses[2] = {0x20, 0x21};
         // Map 0-100 to volume register
-        // On MA12070P, 0x18 is 0dB (max), 0x00 is -100dB (min)
-        // Adjust the scaling to match exactly your desired register mappings.
-        // For example, mapping 0-100 linearly to 0x00 to 0x18:
         uint8_t regVol = (uint8_t)((vol / 100.0) * 0x18);
         for (int i = 0; i < 2; i++) {
             Wire.beginTransmission(amp_addresses[i]);
@@ -368,6 +406,19 @@ void loop() {
             Wire.write(regVol);
             Wire.endTransmission();
         }
+    }
+    // Check for master volume limit (Format: "VOL_LIMIT:x")
+    else if (cmd.startsWith("VOL_LIMIT:")) {
+        int limit = cmd.substring(10).toInt();
+        uint8_t amp_addresses[2] = {0x20, 0x21};
+        uint8_t limitVol = (uint8_t)((limit / 100.0) * 0x18);
+        for (int i = 0; i < 2; i++) {
+            Wire.beginTransmission(amp_addresses[i]);
+            Wire.write(0x40);
+            Wire.write(limitVol);
+            Wire.endTransmission();
+        }
+        Serial.printf("Volume Limit set to %d%%\n", limit);
     }
     // Check for mute toggle from UI (Format: "MUTE:x")
     else if (cmd.startsWith("MUTE:")) {
@@ -388,6 +439,53 @@ void loop() {
                 leds->show(r, g, b, w1, w2);
             }
         }
+    }
+    // Check for fan control from UI (Format: "FAN:x")
+    else if (cmd.startsWith("FAN:")) {
+        int fanCmd = cmd.substring(4).toInt(); // 0 to 100
+        int pwmValue = 0;
+        if (fanCmd > 0) {
+            // Min Power: 0.30 (Lüfter braucht mindestens 30% PWM-Signal zum Anlaufen).
+            if (fanCmd < 30) fanCmd = 30;
+            pwmValue = (fanCmd * 255) / 100;
+        } else {
+            // Zero means Zero: Bei einem Wert von 0 muss das PWM-Signal komplett abgeschaltet werden
+            pwmValue = 0;
+        }
+        analogWrite(FAN_PWM, pwmValue);
+    }
+    // Check for DSP crossover logic (Format: "CROSSOVER:x")
+    else if (cmd.startsWith("CROSSOVER:")) {
+        int crossoverFreq = cmd.substring(10).toInt();
+        // The S3 calculates exact coefficients, but if it only sends the frequency,
+        // the RP calculates simple low-pass coefficients.
+        float w0 = 2.0 * 3.14159265 * crossoverFreq / 44100.0;
+        float alpha = sin(w0) / (2.0 * 0.707);
+        float a0 = 1.0 + alpha;
+        b0 = (1.0 - cos(w0)) / 2.0 / a0;
+        b1 = (1.0 - cos(w0)) / a0;
+        b2 = (1.0 - cos(w0)) / 2.0 / a0;
+        a1 = -2.0 * cos(w0) / a0;
+        a2 = (1.0 - alpha) / a0;
+        dsp_active = true;
+        Serial.printf("Crossover active: %d Hz\n", crossoverFreq);
+    }
+    // Check for EQ logic (Format: "EQ_BASS:x")
+    else if (cmd.startsWith("EQ_BASS:")) {
+        int eqBass = cmd.substring(8).toInt();
+        // Adjust bass gain dynamically
+        float gain = 1.0 + (eqBass * 0.1); // +1 unit = +10% gain
+        b0 *= gain;
+        b1 *= gain;
+        b2 *= gain;
+        dsp_active = true;
+        Serial.printf("EQ_BASS active: %d\n", eqBass);
+    }
+    // Direct Biquad coefficients from S3 (Format: "BIQUAD:b0:b1:b2:a1:a2")
+    else if (cmd.startsWith("BIQUAD:")) {
+        sscanf(cmd.c_str(), "BIQUAD:%f:%f:%f:%f:%f", &b0, &b1, &b2, &a1, &a2);
+        dsp_active = true;
+        Serial.println("Biquad coefficients updated from S3");
     }
   }
   
@@ -420,15 +518,44 @@ void loop() {
   // Prio 3 (BT Active Hardware Pin)
   bool btActive = digitalRead(BT_ACTIVE_IN) == HIGH;
   
-  // Resolve Priority
+  // Last Active Wins Logic for I2S/BT and SPDIF
+  // We keep track of what was playing before BT or TV interrupted
+  static AudioSource previousSource = SRC_WLAN;
+  static bool wasBtActive = false;
+  static bool wasTvActive = false;
+
+  // Detect falling edges to revert source
+  if (wasBtActive && !btActive && currentSource == SRC_BT) {
+      setAudioSource(previousSource);
+  }
+  if (wasTvActive && !tvActive && currentSource == SRC_TV) {
+      setAudioSource(previousSource);
+  }
+
+  // Detect rising edges to jump to new source
+  if (!wasBtActive && btActive) {
+      if (currentSource != SRC_BT) previousSource = currentSource;
+      setAudioSource(SRC_BT);
+  } else if (!wasTvActive && tvActive) {
+      if (currentSource != SRC_TV) previousSource = currentSource;
+      setAudioSource(SRC_TV);
+  }
+
+  wasBtActive = btActive;
+  wasTvActive = tvActive;
+
+  // Resolve Override (Highest Prio)
   if (haOverrideActive) {
     setAudioSource(SRC_OVERRIDE);
-  } else if (tvActive) {
-    setAudioSource(SRC_TV);
-  } else if (btActive) {
-    setAudioSource(SRC_BT);
-  } else {
-    setAudioSource(SRC_WLAN); // Default
+  } else if (currentSource == SRC_OVERRIDE) {
+      // If override is lifted, revert to the active media source
+      if (btActive) {
+          setAudioSource(SRC_BT);
+      } else if (tvActive) {
+          setAudioSource(SRC_TV);
+      } else {
+          setAudioSource(SRC_WLAN);
+      }
   }
 
   // Active Audio Passthrough
@@ -443,38 +570,38 @@ void loop() {
     // Read RP2354 Internal Temperature
     float internalTemp = analogReadTemp();
     
-    // I2C Fault & Status Polling from MA12070P (Address 0x20)
+    // I2C Fault & Status Polling from MA12070P (Address 0x20 and 0x21)
     uint8_t reg71 = 0; // error_now
     uint8_t reg1B = 0; // monitor_clip
-    float internalAmpTemp = 40.0;
+    float maxAmpTemp = 40.0;
 
-    // Read Reg 0x71
-    Wire.beginTransmission(0x20);
-    Wire.write(0x71);
-    if (Wire.endTransmission(false) == 0 && Wire.requestFrom(0x20, 1) == 1) {
-        reg71 = Wire.read();
-    }
+    uint8_t amp_addresses[2] = {0x20, 0x21};
+    for (int i = 0; i < 2; i++) {
+        uint8_t addr = amp_addresses[i];
 
-    // Read Reg 0x1B
-    Wire.beginTransmission(0x20);
-    Wire.write(0x1B);
-    if (Wire.endTransmission(false) == 0 && Wire.requestFrom(0x20, 1) == 1) {
-        reg1B = Wire.read();
-    }
+        // Read Reg 0x71
+        Wire.beginTransmission(addr);
+        Wire.write(0x71);
+        if (Wire.endTransmission(false) == 0 && Wire.requestFrom((uint8_t)addr, (size_t)1) == 1) {
+            reg71 |= Wire.read();
+        }
 
-    // Read Reg 0x60
-    Wire.beginTransmission(0x20);
-    Wire.write(0x60);
-    if (Wire.endTransmission(false) == 0 && Wire.requestFrom(0x20, 1) == 1) {
-        if (Wire.read() & 0x40) internalAmpTemp = 85.0;
+        // Read Reg 0x1B
+        Wire.beginTransmission(addr);
+        Wire.write(0x1B);
+        if (Wire.endTransmission(false) == 0 && Wire.requestFrom((uint8_t)addr, (size_t)1) == 1) {
+            reg1B |= Wire.read();
+        }
+
+        // Read Reg 0x60
+        Wire.beginTransmission(addr);
+        Wire.write(0x60);
+        if (Wire.endTransmission(false) == 0 && Wire.requestFrom((uint8_t)addr, (size_t)1) == 1) {
+            if (Wire.read() & 0x40) {
+                maxAmpTemp = 85.0; // Overrides if any amp is hot
+            }
+        }
     }
-    
-    // Hottest-Spot Thermal Commander Logic
-    float hottest = internalTemp;
-    if (internalAmpTemp > hottest) hottest = internalAmpTemp;
-    if (tempAmp > hottest) hottest = tempAmp;
-    if (tempAmb > hottest) hottest = tempAmb;
-    if (tempPsu > hottest) hottest = tempPsu;
     
     // Determine System Status String based on priorities
     String sysStatus = "ok";
@@ -487,33 +614,14 @@ void loop() {
     else if (reg71 & 0x20) sysStatus = "DC-PROT";
     else if (reg71 & 0x40) sysStatus = "MCLK-ERR";
     else if (reg1B & 0x03) sysStatus = "CLIPPING";
-    else if (hottest > 80.0) sysStatus = "HOT";
 
-    // Send to S3
-    Serial1.printf("TEMP:%.1f\n", internalTemp);
+    // Send to S3 (Bidirectional telemetry)
+    Serial1.printf("TEMP_RP:%.1f\n", internalTemp);
+    Serial1.printf("TEMP_AMPS:%.1f\n", maxAmpTemp);
     Serial1.printf("SYS_STAT:%s\n", sysStatus.c_str());
 
     bool fault = (digitalRead(AMP1_FAULT) == LOW || digitalRead(AMP2_FAULT) == LOW);
     Serial1.printf("FAULT:%d\n", fault ? 1 : 0);
-
-    // Dynamic Fan Curve with Hysteresis
-    static int currentFanSpeed = 0;
-    
-    if (hottest > 70.0) {
-      currentFanSpeed = 255; // 100%
-    } else if (hottest > 60.0) {
-      if (currentFanSpeed < 153) currentFanSpeed = 153; // 60%
-    } else if (hottest > 50.0) {
-      if (currentFanSpeed < 76) currentFanSpeed = 76; // 30%
-    } else if (hottest < 48.0) {
-      // Hysteresis: only turn off if everything cools completely down
-      currentFanSpeed = 0;
-    }
-    
-    analogWrite(FAN_PWM, currentFanSpeed);
-    
-    float fanPercent = (currentFanSpeed / 255.0) * 100.0;
-    Serial1.printf("FAN:%.0f\n", fanPercent);
 
     lastBackgroundTask = millis();
   }
