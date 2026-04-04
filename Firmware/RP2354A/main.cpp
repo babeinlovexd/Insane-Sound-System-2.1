@@ -231,9 +231,9 @@ void setup() {
     Wire.write(0x01); // Enable Soft Mute
     Wire.endTransmission();
 
-    // Volume initial -100dB (Reg 0x2C)
+    // Volume initial -100dB (Reg 0x40)
     Wire.beginTransmission(addr);
-    Wire.write(0x2C); 
+    Wire.write(0x40);
     Wire.write(0x00); // Lowest volume
     Wire.endTransmission();
   }
@@ -316,7 +316,7 @@ void setup() {
     // Ramp volume up to 0dB (0x18 is roughly 0dB or default max depending on specific register map)
     // We will set it to a safe default.
     Wire.beginTransmission(addr);
-    Wire.write(0x2C); 
+    Wire.write(0x40);
     Wire.write(0x18); // Default active volume
     Wire.endTransmission();
   }
@@ -362,7 +362,7 @@ void loop() {
         uint8_t regVol = (uint8_t)((vol / 100.0) * 0x18);
         for (int i = 0; i < 2; i++) {
             Wire.beginTransmission(amp_addresses[i]);
-            Wire.write(0x2C);
+            Wire.write(0x40);
             Wire.write(regVol);
             Wire.endTransmission();
         }
