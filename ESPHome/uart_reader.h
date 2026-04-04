@@ -16,13 +16,20 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
   int head = 0;
 
  public:
+  esphome::sensor::Sensor *fan_sensor_;
+  esphome::binary_sensor::BinarySensor *fault_sensor_;
+  esphome::text_sensor::TextSensor *stream_status_;
+
   CustomUARTReader(esphome::uart::UARTComponent *parent, 
                    esphome::text_sensor::TextSensor *track, 
                    esphome::text_sensor::TextSensor *artist, 
                    esphome::text_sensor::TextSensor *status,
                    esphome::sensor::Sensor *temp,
+                   esphome::sensor::Sensor *fan,
+                   esphome::binary_sensor::BinarySensor *fault,
+                   esphome::text_sensor::TextSensor *stream_status,
                    bool *is_flashing) 
-      : UARTDevice(parent), track_sensor_(track), artist_sensor_(artist), status_sensor_(status), temp_sensor_(temp), is_flashing_(is_flashing) {}
+      : UARTDevice(parent), track_sensor_(track), artist_sensor_(artist), status_sensor_(status), temp_sensor_(temp), fan_sensor_(fan), fault_sensor_(fault), stream_status_(stream_status), is_flashing_(is_flashing) {}
 
   void setup() override {
     // nothing to do here
@@ -59,6 +66,32 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
       return;
     }
 
+    // Format 4: RP2354 Fan -> "FAN:50"
+    if (s_line.find("FAN:") == 0) {
+      if (fan_sensor_) {
+        try {
+          float fan_val = std::stof(s_line.substr(4));
+          fan_sensor_->publish_state(fan_val);
+        } catch (...) {
+          // ignore parsing errors
+        }
+      }
+      return;
+    }
+
+    // Format 5: RP2354 Fault -> "FAULT:1"
+    if (s_line.find("FAULT:") == 0) {
+      if (fault_sensor_) {
+        try {
+          int fault_val = std::stoi(s_line.substr(6));
+          fault_sensor_->publish_state(fault_val > 0);
+        } catch (...) {
+          // ignore parsing errors
+        }
+      }
+      return;
+    }
+
     // Format 3: RP2354 Temp -> "TEMP:42.5"
     if (s_line.find("TEMP:") == 0) {
       if (temp_sensor_) {
@@ -68,6 +101,24 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
         } catch (...) {
           // ignore parsing errors
         }
+      }
+      return;
+    }
+
+    // Check for stream status from WROOM
+    if (s_line.find("STATUS:PLAY") == 0) {
+      if (stream_status_) {
+        stream_status_->publish_state("playing");
+      }
+      return;
+    } else if (s_line.find("STATUS:PAUSE") == 0) {
+      if (stream_status_) {
+        stream_status_->publish_state("paused");
+      }
+      return;
+    } else if (s_line.find("STATUS:OFFLINE") == 0) {
+      if (stream_status_) {
+        stream_status_->publish_state("idle");
       }
       return;
     }
