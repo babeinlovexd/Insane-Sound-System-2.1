@@ -282,6 +282,10 @@ class InsaneFlasher(ctk.CTk):
         )
         self.rp_flash_btn.pack(pady=(0, 15), padx=20, fill="x")
 
+        # Globaler Fortschrittsbalken für Flash Vorgänge (Initial unsichtbar)
+        self.flash_progress = ctk.CTkProgressBar(self.tab_upd, height=15, fg_color="#333333", progress_color="#3b8ed0")
+        self.flash_progress.set(0)
+
     def setup_tab_log(self):
         self.log_box = ctk.CTkTextbox(self.tab_log, width=700, height=400, font=("Consolas", 12), state="disabled", fg_color="#1a1a1a")
         self.log_box.pack(pady=20, padx=20, fill="both", expand=True)
@@ -296,10 +300,16 @@ class InsaneFlasher(ctk.CTk):
         info_frame = ctk.CTkFrame(self.tab_info, fg_color="transparent")
         info_frame.pack(pady=50)
 
+        try:
+            logo_path = resource_path("logo.png")
+            logo_image = ctk.CTkImage(light_image=Image.open(logo_path), dark_image=Image.open(logo_path), size=(150, 150))
+            ctk.CTkLabel(info_frame, image=logo_image, text="").pack(pady=10)
+        except: pass
+
         ctk.CTkLabel(info_frame, text="Insane Control Center", font=("Roboto", 24, "bold")).pack(pady=10)
-        ctk.CTkLabel(info_frame, text="Version 6.0.0", font=("Roboto", 14)).pack(pady=5)
-        
-        btn = ctk.CTkButton(info_frame, text="GitHub Repository", fg_color="#333333", command=lambda: webbrowser.open(GITHUB_URL))
+        ctk.CTkLabel(info_frame, text="Version 6.0.0\nTriple-Brain Architecture Hub", font=("Roboto", 14), text_color="#aaaaaa", justify="center").pack(pady=5)
+
+        btn = ctk.CTkButton(info_frame, text="GitHub Repository", fg_color="#333333", height=40, command=lambda: webbrowser.open(GITHUB_URL))
         btn.pack(pady=20)
 
     def setup_tab_ctrl(self):
@@ -307,18 +317,21 @@ class InsaneFlasher(ctk.CTk):
         ctrl_frame = ctk.CTkFrame(self.tab_ctrl, fg_color="transparent")
         ctrl_frame.pack(pady=20, fill="both", expand=True)
 
+        ctk.CTkLabel(ctrl_frame, text="Media Player", font=("Roboto", 20, "bold"), text_color="#3b8ed0").pack(pady=(0, 20))
+
         btn_row = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
         btn_row.pack(pady=10)
 
-        ctk.CTkButton(btn_row, text="⏮ Prev", width=100, height=40, command=lambda: self.send_action("button/bl_vorheriger_titel/press")).pack(side="left", padx=10)
-        ctk.CTkButton(btn_row, text="⏯ Play/Pause", width=100, height=40, command=lambda: self.send_action("button/bl_play_pause/press")).pack(side="left", padx=10)
-        ctk.CTkButton(btn_row, text="⏭ Next", width=100, height=40, command=lambda: self.send_action("button/bl_nachster_titel/press")).pack(side="left", padx=10)
+        ctk.CTkButton(btn_row, text="⏮ Zurück", width=110, height=45, corner_radius=20, fg_color="#333333", hover_color="#444444", command=lambda: self.send_action("button/bl_vorheriger_titel/press")).pack(side="left", padx=15)
+        ctk.CTkButton(btn_row, text="⏯ Play / Pause", width=160, height=60, corner_radius=30, fg_color="#3b8ed0", hover_color="#2980b9", font=("Roboto", 16, "bold"), command=lambda: self.send_action("button/bl_play_pause/press")).pack(side="left", padx=15)
+        ctk.CTkButton(btn_row, text="Weiter ⏭", width=110, height=45, corner_radius=20, fg_color="#333333", hover_color="#444444", command=lambda: self.send_action("button/bl_nachster_titel/press")).pack(side="left", padx=15)
 
         vol_frame = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
-        vol_frame.pack(pady=30)
-        ctk.CTkLabel(vol_frame, text="Bluetooth Lautstärke", font=("Roboto", 14)).pack(pady=5)
-        self.vol_slider = ctk.CTkSlider(vol_frame, from_=0, to=100, command=self.send_volume)
-        self.vol_slider.pack(fill="x", padx=40)
+        vol_frame.pack(pady=40, fill="x", padx=40)
+
+        ctk.CTkLabel(vol_frame, text="Bluetooth Lautstärke", font=("Roboto", 14)).pack(pady=(0, 10))
+        self.vol_slider = ctk.CTkSlider(vol_frame, from_=0, to=100, button_color="#3b8ed0", button_hover_color="#2980b9", command=self.send_volume)
+        self.vol_slider.pack(fill="x")
 
     def send_action(self, endpoint):
         ip = self.dropdown_mapping.get(self.device_dropdown.get())
@@ -550,6 +563,9 @@ class InsaneFlasher(ctk.CTk):
         self.after(0, lambda: btn.configure(state="disabled", text="LADE FIRMWARE..."))
         
         try:
+            self.after(0, lambda: self.flash_progress.pack(pady=10, padx=20, fill="x"))
+            self.after(0, lambda: self.flash_progress.set(0.0))
+
             self.after(0, lambda: status_lbl.configure(text="Schritt 0: Lade Firmware von GitHub...", text_color="orange"))
 
             download_url = None
@@ -569,7 +585,7 @@ class InsaneFlasher(ctk.CTk):
 
             r = requests.get(download_url, timeout=15)
             r.raise_for_status()
-            with open(get_firmware_path(), "wb") as f: 
+            with open(get_firmware_path(), "wb") as f:
                 f.write(r.content)
 
             self.after(0, lambda: btn.configure(text="FLASHING..."))
@@ -593,6 +609,13 @@ class InsaneFlasher(ctk.CTk):
                     text = f"Flashing: {msg.split('...')[0]}..." if "..." in msg else msg
                     self.after(0, lambda: status_lbl.configure(text=text))
                     self.log(msg)
+                    # Extract percentage if possible
+                    if "(" in msg and "%" in msg:
+                        try:
+                            pct_str = msg.split("(")[1].split("%")[0].strip()
+                            pct = float(pct_str) / 100.0
+                            self.after(0, lambda: self.flash_progress.set(pct))
+                        except: pass
 
                 redirector = ConsoleRedirector(gui_update)
                 with contextlib.redirect_stdout(redirector):
@@ -621,10 +644,15 @@ class InsaneFlasher(ctk.CTk):
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(15)
                     s.connect((ip, 6667))
+                    file_size = os.path.getsize(get_firmware_path())
+                    sent = 0
                     with open(get_firmware_path(), 'rb') as f:
                         while chunk := f.read(1024):
                             s.sendall(chunk)
-                            self.log(f"Sent chunk... ({len(chunk)} bytes)")
+                            sent += len(chunk)
+                            pct = sent / file_size
+                            self.after(0, lambda p=pct: self.flash_progress.set(p))
+                            self.after(0, lambda p=pct: status_lbl.configure(text=f"Flashing: {int(p*100)}%"))
 
                 self.after(0, lambda: status_lbl.configure(text="Schritt 3: RP2354 geflasht. Reboot.", text_color="orange"))
                 requests.post(f"http://{ip}/button/rp2354_normal_boot/press", timeout=5)
@@ -649,6 +677,7 @@ class InsaneFlasher(ctk.CTk):
             self.log(str(e))
         finally:
             self.after(0, lambda: btn.configure(state="normal", text=f"{target.upper()} UPDATE"))
+            self.after(0, lambda: self.flash_progress.pack_forget())
             
     def check_for_updates(self, bl_version, rp_version):
         if bl_version == "N/A" or bl_version == "Offline":
