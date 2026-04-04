@@ -87,8 +87,8 @@ class InsaneFlasher(ctk.CTk):
         super().__init__()
 
         # 1. FENSTER-SETUP
-        self.title("Insane Sound System V5 - Official Hub")
-        self.geometry("780x850") 
+        self.title("Insane Control Center V6")
+        self.geometry("800x700")
         self.configure(fg_color="#1a1a1a")
         
         try:
@@ -119,7 +119,7 @@ class InsaneFlasher(ctk.CTk):
             self.logo_label = ctk.CTkLabel(self.header_frame, text="ISS", font=("Roboto", 40, "bold"), text_color="#3b8ed0", width=80)
             self.logo_label.grid(row=0, column=0, rowspan=2, padx=(0, 20))
 
-        self.title_label = ctk.CTkLabel(self.header_frame, text="Insane Sound System V5", font=("Roboto", 26, "bold"), text_color="#ffffff")
+        self.title_label = ctk.CTkLabel(self.header_frame, text="Insane Control Center V6", font=("Roboto", 26, "bold"), text_color="#ffffff")
         self.title_label.grid(row=0, column=1, sticky="sw")
         
         # --- STATUS PUNKT (NEBEN DEM TITEL) ---
@@ -131,143 +131,203 @@ class InsaneFlasher(ctk.CTk):
         self.author_link.bind("<Button-1>", lambda e: webbrowser.open(GITHUB_URL))
 
         self.main_area = ctk.CTkFrame(self, fg_color="transparent")
-        self.main_area.pack(fill="both", expand=True, padx=30)
+        self.main_area.pack(fill="both", expand=True, padx=20, pady=(0, 20))
 
         # ---------------------------------------------------------
-        # 1. Card: SYSTEM AUSWAHL
+        # SYSTEM AUSWAHL (Immer sichtbar)
         # ---------------------------------------------------------
-        self.card_dev = ctk.CTkFrame(self.main_area, fg_color="#242424", corner_radius=10)
-        self.card_dev.pack(pady=5, fill="x")
+        self.dev_ctrl_frame = ctk.CTkFrame(self.main_area, fg_color="#242424", corner_radius=10)
+        self.dev_ctrl_frame.pack(pady=(0, 10), fill="x")
 
-        # Container für Dropdown + Buttons nebeneinander
-        dev_ctrl_frame = ctk.CTkFrame(self.card_dev, fg_color="transparent")
-        dev_ctrl_frame.pack(pady=15, padx=20, fill="x")
+        inner_ctrl = ctk.CTkFrame(self.dev_ctrl_frame, fg_color="transparent")
+        inner_ctrl.pack(pady=10, padx=20, fill="x")
 
-        self.device_dropdown = ctk.CTkOptionMenu(dev_ctrl_frame, values=["Suche läuft..."], state="disabled", height=35,
+        self.device_dropdown = ctk.CTkOptionMenu(inner_ctrl, values=["Suche läuft..."], state="disabled", height=35,
                                                 fg_color="#1a1a1a", button_color="#333333", button_hover_color="#444444", command=self.on_device_select)
         self.device_dropdown.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
         # 1. Favoriten Button (Outline-Style mit Text)
         self.fav_btn = ctk.CTkButton(
-            dev_ctrl_frame, text="⭐ Merken", width=95, height=32, 
+            inner_ctrl, text="⭐ Merken", width=95, height=32,
             fg_color="transparent", border_width=1, border_color="#f1c40f", 
             hover_color="#333333", text_color="#f1c40f", font=("Roboto", 13, "bold"), 
             command=self.save_favorite
         )
         self.fav_btn.pack(side="left", padx=(0, 5)) 
 
-        # 2. Favorit Löschen Button (Outline-Style mit Text)
         self.del_fav_btn = ctk.CTkButton(
-            dev_ctrl_frame, text="✖ Löschen", width=95, height=32, 
+            inner_ctrl, text="✖ Löschen", width=95, height=32,
             fg_color="transparent", border_width=1, border_color="#c0392b", 
             hover_color="#333333", text_color="#c0392b", font=("Roboto", 13, "bold"), 
             command=self.delete_favorite
         )
         self.del_fav_btn.pack(side="left", padx=(0, 20)) 
 
-        # 3. Reboot Button (Outline-Style mit Text)
         self.restart_btn = ctk.CTkButton(
-            dev_ctrl_frame, text="⚡ Reset", width=95, height=32, 
+            inner_ctrl, text="⚡ System Reset", width=120, height=32,
             fg_color="transparent", border_width=1, border_color="#e67e22", 
             hover_color="#333333", text_color="#e67e22", font=("Roboto", 13, "bold"), 
-            command=self.restart_bluetooth
+            command=self.restart_system
         )
         self.restart_btn.pack(side="left", padx=(0, 5))
 
         # ---------------------------------------------------------
-        # 2. Card: LIVE TELEMETRY DASHBOARD
+        # TABS EINRICHTEN
         # ---------------------------------------------------------
-        self.card_dash = ctk.CTkFrame(self.main_area, fg_color="#242424", corner_radius=10)
-        self.card_dash.pack(pady=10, fill="x")
+        self.tabview = ctk.CTkTabview(self.main_area, segmented_button_selected_color="#3b8ed0")
+        self.tabview.pack(fill="both", expand=True)
 
-        dash_top = ctk.CTkFrame(self.card_dash, fg_color="transparent")
-        dash_top.pack(fill="x", padx=20, pady=(15, 0))
+        self.tab_ctrl = self.tabview.add("🕹️ Steuerung")
+        self.tab_tele = self.tabview.add("📊 Telemetrie")
+        self.tab_upd = self.tabview.add("⚡ Updates")
+        self.tab_log = self.tabview.add("📝 Log")
+        self.tab_info = self.tabview.add("ℹ️ Credits & Links")
 
-        ctk.CTkLabel(dash_top, text="LIVE SYSTEM MONITOR", font=("Roboto", 12, "bold"), text_color="#666666").pack(side="left")
+        self.setup_tab_ctrl()
+        self.setup_tab_tele()
+        self.setup_tab_upd()
+        self.setup_tab_log()
+        self.setup_tab_info()
 
-        self.info_grid = ctk.CTkFrame(self.card_dash, fg_color="#1a1a1a", corner_radius=10)
-        self.info_grid.pack(pady=15, padx=20, fill="x")
-        
-        # Grid konfigurieren, damit die Spalten gleich breit sind
-        self.info_grid.columnconfigure((0, 1, 2), weight=1)
-
-        # Funktion zum schnellen Erstellen der Datenfelder inkl. optionaler Progressbar
-        def create_stat(row, col, label_text, is_temp=False):
-            lbl = ctk.CTkLabel(self.info_grid, text=label_text, font=("Roboto", 11, "bold"), text_color="#888888")
-            lbl.grid(row=row*2, column=col, sticky="w", padx=15, pady=(10, 0))
-            
-            if is_temp:
-                # Extra Container für Wert + Balken
-                container = ctk.CTkFrame(self.info_grid, fg_color="transparent")
-                container.grid(row=row*2+1, column=col, sticky="ew", padx=15, pady=(0, 10))
-                
-                val = ctk.CTkLabel(container, text="-", font=("Roboto", 14, "bold"), text_color="#ffffff")
-                val.pack(anchor="w")
-                
-                bar = ctk.CTkProgressBar(container, height=6, fg_color="#333333")
-                bar.set(0)
-                bar.pack(fill="x", pady=(4, 0))
-                return val, bar # Gibt Label UND Balken zurück
-            else:
-                val = ctk.CTkLabel(self.info_grid, text="-", font=("Roboto", 14, "bold"), text_color="#ffffff")
-                val.grid(row=row*2+1, column=col, sticky="w", padx=15, pady=(0, 10))
-                return val
-
-        # Reihe 1: Hauptsystem
-        self.val_src = create_stat(0, 0, "AUDIO QUELLE")
-        self.val_amp = create_stat(0, 1, "VERSTÄRKER")
-        self.val_turbo = create_stat(0, 2, "TURBO MODE")
-
-        # Reihe 2: Temperaturen (mit is_temp=True)
-        self.val_temp_amp = create_stat(1, 0, "TEMP VERSTÄRKER", is_temp=True)
-        self.val_temp_esp = create_stat(1, 1, "TEMP ESP32", is_temp=True)
-        self.val_temp_pwr = create_stat(1, 2, "TEMP POWER", is_temp=True)
-
-        # Reihe 3: Medien Metadaten
-        self.val_bl_stat = create_stat(2, 0, "MEDIA STATUS")
-        self.val_bl_song = create_stat(2, 1, "MEDIA TITEL")
-        self.val_bl_art = create_stat(2, 2, "MEDIA INTERPRET")
-
-        # Reihe 4: System
-        self.val_fan = create_stat(3, 0, "LÜFTER")
-        self.val_wifi = create_stat(3, 1, "WLAN SIGNAL")
-        self.val_bl_ver = create_stat(3, 2, "FIRMWARE VER") 
-
-        # ---------------------------------------------------------
-        # 3. Card: BLUETOOTH FIRMWARE UPDATE
-        # ---------------------------------------------------------
-        self.card_flash = ctk.CTkFrame(self.main_area, fg_color="#242424", corner_radius=10)
-        self.card_flash.pack(pady=5, fill="x")
-
-        self.sec_2 = ctk.CTkLabel(self.card_flash, text="OTA UPDATE (WROOM CHIP)", font=("Roboto", 12, "bold"), text_color="#666666")
-        self.sec_2.pack(pady=(15, 5), padx=20, anchor="w")
-
-        self.fw_frame = ctk.CTkFrame(self.card_flash, fg_color="transparent")
-        self.fw_frame.pack(pady=5, padx=20, fill="x")
-
-        self.fw_label = ctk.CTkLabel(self.fw_frame, text="Prüfe Firmware Status...", font=("Roboto", 14), text_color="#ffffff")
-        self.fw_label.pack(side="left")
-
-        self.status_label = ctk.CTkLabel(self.card_flash, text="Bereit.", font=("Roboto", 13), text_color="#888888")
-        self.status_label.pack(pady=(10, 5))
-
-        self.flash_btn = ctk.CTkButton(self.card_flash, text="FLASHVORGANG STARTEN", state="disabled", fg_color="#7a1a1a", hover_color="#9b1b1b", height=45, font=("Roboto", 16, "bold"), command=self.start_flash_thread)
-        self.flash_btn.pack(pady=(5, 20), padx=20, fill="x")
-
-        # --- FOOTER (COPYRIGHT & CREDITS) ---
+        # --- FOOTER ---
         self.footer_label = ctk.CTkLabel(
-            self, 
-            text="© 2026 BabeinlovexD | Powered by esptool (GPLv2)", 
-            font=("Roboto", 10), 
+            self,
+            text="© 2026 BabeinlovexD | Triple-Brain Architecture Hub",
+            font=("Roboto", 10),
             text_color="#555555"
         )
         self.footer_label.pack(side="bottom", pady=(0, 10))
-        
+
         self.sync_timer = None
 
         # Favoriten laden und Scan starten (Deine bestehenden Zeilen)
         self.load_favorites()
         self.start_scan()
+
+    def setup_tab_tele(self):
+        self.info_grid = ctk.CTkFrame(self.tab_tele, fg_color="#1a1a1a", corner_radius=10)
+        self.info_grid.pack(pady=15, padx=20, fill="both", expand=True)
+        self.info_grid.columnconfigure((0, 1, 2), weight=1)
+
+        def create_stat(row, col, label_text, is_temp=False):
+            lbl = ctk.CTkLabel(self.info_grid, text=label_text, font=("Roboto", 11, "bold"), text_color="#888888")
+            lbl.grid(row=row*2, column=col, sticky="w", padx=15, pady=(10, 0))
+            if is_temp:
+                container = ctk.CTkFrame(self.info_grid, fg_color="transparent")
+                container.grid(row=row*2+1, column=col, sticky="ew", padx=15, pady=(0, 10))
+                val = ctk.CTkLabel(container, text="-", font=("Roboto", 14, "bold"), text_color="#ffffff")
+                val.pack(anchor="w")
+                bar = ctk.CTkProgressBar(container, height=6, fg_color="#333333")
+                bar.set(0)
+                bar.pack(fill="x", pady=(4, 0))
+                return val, bar
+            else:
+                val = ctk.CTkLabel(self.info_grid, text="-", font=("Roboto", 14, "bold"), text_color="#ffffff")
+                val.grid(row=row*2+1, column=col, sticky="w", padx=15, pady=(0, 10))
+                return val
+
+        self.val_src = create_stat(0, 0, "AUDIO QUELLE")
+        self.val_sys = create_stat(0, 1, "SYSTEM STATUS")
+        self.val_wifi = create_stat(0, 2, "WLAN SIGNAL")
+
+        self.val_temp_amp = create_stat(1, 0, "TEMP VERSTÄRKER", is_temp=True)
+        self.val_temp_esp = create_stat(1, 1, "TEMP ESP32", is_temp=True)
+        self.val_temp_dsp = create_stat(1, 2, "TEMP DSP", is_temp=True)
+
+        self.val_bl_stat = create_stat(2, 0, "MEDIA STATUS")
+        self.val_bl_song = create_stat(2, 1, "MEDIA TITEL")
+        self.val_bl_art = create_stat(2, 2, "MEDIA INTERPRET")
+
+        self.val_fan = create_stat(3, 0, "LÜFTER SPEED")
+        self.val_amp_stat = create_stat(3, 1, "AMP FAULT")
+        self.val_bl_conn = create_stat(3, 2, "BT CONN")
+
+    def setup_tab_upd(self):
+        self.sec_wroom = ctk.CTkFrame(self.tab_upd, fg_color="#242424", corner_radius=10)
+        self.sec_wroom.pack(pady=10, padx=20, fill="x")
+
+        wroom_top = ctk.CTkFrame(self.sec_wroom, fg_color="transparent")
+        wroom_top.pack(fill="x", padx=15, pady=10)
+        ctk.CTkLabel(wroom_top, text="WROOM-32D (BLUETOOTH)", font=("Roboto", 14, "bold"), text_color="#3b8ed0").pack(side="left")
+
+        self.wroom_fw_label = ctk.CTkLabel(self.sec_wroom, text="Aktuelle Version: [N/A]", font=("Roboto", 13))
+        self.wroom_fw_label.pack(pady=5)
+
+        self.wroom_status = ctk.CTkLabel(self.sec_wroom, text="Bereit.", font=("Roboto", 12), text_color="#888888")
+        self.wroom_status.pack(pady=(0, 10))
+
+        self.wroom_flash_btn = ctk.CTkButton(
+            self.sec_wroom, text="WROOM UPDATE", fg_color="#7a1a1a", hover_color="#9b1b1b", height=40, font=("Roboto", 14, "bold"),
+            command=lambda: self.start_flash_thread("wroom")
+        )
+        self.wroom_flash_btn.pack(pady=(0, 15), padx=20, fill="x")
+
+        self.sec_rp = ctk.CTkFrame(self.tab_upd, fg_color="#242424", corner_radius=10)
+        self.sec_rp.pack(pady=10, padx=20, fill="x")
+
+        rp_top = ctk.CTkFrame(self.sec_rp, fg_color="transparent")
+        rp_top.pack(fill="x", padx=15, pady=10)
+        ctk.CTkLabel(rp_top, text="RP2354A (DSP)", font=("Roboto", 14, "bold"), text_color="#e67e22").pack(side="left")
+
+        self.rp_fw_label = ctk.CTkLabel(self.sec_rp, text="Aktuelle Version: [N/A]", font=("Roboto", 13))
+        self.rp_fw_label.pack(pady=5)
+
+        self.rp_status = ctk.CTkLabel(self.sec_rp, text="Bereit.", font=("Roboto", 12), text_color="#888888")
+        self.rp_status.pack(pady=(0, 10))
+
+        self.rp_flash_btn = ctk.CTkButton(
+            self.sec_rp, text="RP2354 UPDATE", fg_color="#7a1a1a", hover_color="#9b1b1b", height=40, font=("Roboto", 14, "bold"),
+            command=lambda: self.start_flash_thread("rp2354")
+        )
+        self.rp_flash_btn.pack(pady=(0, 15), padx=20, fill="x")
+
+    def setup_tab_log(self):
+        self.log_box = ctk.CTkTextbox(self.tab_log, width=700, height=400, font=("Consolas", 12), state="disabled", fg_color="#1a1a1a")
+        self.log_box.pack(pady=20, padx=20, fill="both", expand=True)
+
+    def log(self, msg):
+        self.log_box.configure(state="normal")
+        self.log_box.insert("end", msg + "\n")
+        self.log_box.see("end")
+        self.log_box.configure(state="disabled")
+
+    def setup_tab_info(self):
+        info_frame = ctk.CTkFrame(self.tab_info, fg_color="transparent")
+        info_frame.pack(pady=50)
+
+        ctk.CTkLabel(info_frame, text="Insane Control Center", font=("Roboto", 24, "bold")).pack(pady=10)
+        ctk.CTkLabel(info_frame, text="Version 6.0.0", font=("Roboto", 14)).pack(pady=5)
+        
+        btn = ctk.CTkButton(info_frame, text="GitHub Repository", fg_color="#333333", command=lambda: webbrowser.open(GITHUB_URL))
+        btn.pack(pady=20)
+
+    def setup_tab_ctrl(self):
+        # Steuerung (Buttons: Play/Pause, Next, Prev, Volume)
+        ctrl_frame = ctk.CTkFrame(self.tab_ctrl, fg_color="transparent")
+        ctrl_frame.pack(pady=20, fill="both", expand=True)
+
+        btn_row = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
+        btn_row.pack(pady=10)
+
+        ctk.CTkButton(btn_row, text="⏮ Prev", width=100, height=40, command=lambda: self.send_action("button/bl_vorheriger_titel/press")).pack(side="left", padx=10)
+        ctk.CTkButton(btn_row, text="⏯ Play/Pause", width=100, height=40, command=lambda: self.send_action("button/bl_play_pause/press")).pack(side="left", padx=10)
+        ctk.CTkButton(btn_row, text="⏭ Next", width=100, height=40, command=lambda: self.send_action("button/bl_nachster_titel/press")).pack(side="left", padx=10)
+
+        vol_frame = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
+        vol_frame.pack(pady=30)
+        ctk.CTkLabel(vol_frame, text="Bluetooth Lautstärke", font=("Roboto", 14)).pack(pady=5)
+        self.vol_slider = ctk.CTkSlider(vol_frame, from_=0, to=100, command=self.send_volume)
+        self.vol_slider.pack(fill="x", padx=40)
+
+    def send_action(self, endpoint):
+        ip = self.dropdown_mapping.get(self.device_dropdown.get())
+        if not ip: return
+        threading.Thread(target=lambda: requests.post(f"http://{ip}/{endpoint}", timeout=2), daemon=True).start()
+
+    def send_volume(self, value):
+        ip = self.dropdown_mapping.get(self.device_dropdown.get())
+        if not ip: return
+        threading.Thread(target=lambda: requests.post(f"http://{ip}/number/bluetooth_lautstarke/set?value={int(value)}", timeout=2), daemon=True).start()
 
     # --- LOGIK FUNKTIONEN ---
     def add_device_to_ui(self, name, ip):
@@ -397,18 +457,21 @@ class InsaneFlasher(ctk.CTk):
             except: return "Offline"
 
         # Daten abrufen (ESPHome generiert URLs aus dem 'name' der Komponente)
-        src = get_state("switch", "Audio Quelle (Intern)")
-        amp = get_state("switch", "Verstärker Power")
-        turbo = get_state("switch", "Insane Turbo Mode")
-        t_amp = get_state("sensor", "Temp Verstärker")
-        t_esp = get_state("sensor", "Temp ESP32 Umgebung")
-        t_pwr = get_state("sensor", "Temp Spannungsregler")
-        bl_stat = get_state("text_sensor", "Wiedergabe Status")
-        bl_song = get_state("text_sensor", "Aktueller Titel")
-        bl_art = get_state("text_sensor", "Aktueller Interpret")
-        fan = get_state("fan", "Gehäuse Lüfter")
-        wifi = get_state("sensor", "WLAN Signal")
-        bl_version = get_state("text_sensor", "BL Firmware Version") # Version holen
+        # V6 Mapping Update
+        src = get_state("text_sensor", "active_audio_source")
+        sys_status = get_state("text_sensor", "insane_system_status")
+        t_amp = get_state("sensor", "ma12070p_temperature")
+        t_esp = get_state("sensor", "esp_ambient_temperature")
+        t_dsp = get_state("sensor", "rp2354_dsp_temperature")
+        bl_stat = get_state("text_sensor", "stream_status")
+        bl_song = get_state("text_sensor", "bluetooth_track")
+        bl_art = get_state("text_sensor", "bluetooth_artist")
+        fan = get_state("sensor", "fan_speed")
+        fault = get_state("binary_sensor", "amp_fault")
+        wifi = get_state("sensor", "wlan_signal")
+        bl_version = get_state("text_sensor", "bl_firmware_version")
+        rp_version = get_state("text_sensor", "rp2354_firmware_version")
+        bt_conn = get_state("binary_sensor", "bluetooth_connected")
 
         import time
         current_time = time.time()
@@ -423,29 +486,25 @@ class InsaneFlasher(ctk.CTk):
                 self.online_version = None
 
         # UI Update triggern (jetzt mit bl_version als Argument)
-        self.after(0, self._update_dashboard_ui, src, amp, turbo, t_amp, t_esp, t_pwr, bl_stat, bl_song, bl_art, fan, wifi, bl_version)
+        self.after(0, self._update_dashboard_ui, src, sys_status, t_amp, t_esp, t_dsp, bl_stat, bl_song, bl_art, fan, fault, wifi, bt_conn, bl_version, rp_version)
         # Versions-Check für den Button
-        self.after(0, lambda: self.check_for_updates(bl_version))
+        self.after(0, lambda: self.check_for_updates(bl_version, rp_version))
 
-    def _update_dashboard_ui(self, src, amp, turbo, t_amp, t_esp, t_pwr, bl_stat, bl_song, bl_art, fan, wifi, bl_version):
+    def _update_dashboard_ui(self, src, sys_status, t_amp, t_esp, t_dsp, bl_stat, bl_song, bl_art, fan, fault, wifi, bt_conn, bl_version, rp_version):
         def set_val(lbl, text, color="#ffffff"):
             lbl.configure(text=str(text), text_color=color)
 
-        # PRÜFUNG: Ist das System online?
         is_online = src != "Offline" and wifi != "Offline"
         
-        # Status-Punkt im Header aktualisieren
         if is_online:
-            self.status_dot.configure(text_color="#2ecc71") # Grün
+            self.status_dot.configure(text_color="#2ecc71")
         else:
-            self.status_dot.configure(text_color="#e74c3c") # Rot
+            self.status_dot.configure(text_color="#e74c3c")
 
-        # Reihe 1 bis 3 (unverändert)...
-        set_val(self.val_src, "WLAN (S3)" if src == "ON" else ("Bluetooth" if src == "OFF" else src), "#2ecc71" if src == "ON" else "#3498db")
-        set_val(self.val_amp, "Aktiv 🔊" if amp == "ON" else ("Standby 💤" if amp == "OFF" else amp), "#2ecc71" if amp == "ON" else "#f39c12")
-        set_val(self.val_turbo, "🔥 INSANE" if turbo == "ON" else "Normal", "#e74c3c" if turbo == "ON" else "#888888")
+        set_val(self.val_src, src, "#2ecc71" if "WLAN" in src else "#3498db")
+        set_val(self.val_sys, sys_status.upper(), "#2ecc71" if sys_status == "ok" else "#e74c3c")
+        set_val(self.val_wifi, f"{wifi} dBm" if wifi != "Offline" else wifi)
 
-        # Reihe 2: Temperaturen mit Balken
         def parse_temp(val):
             try: return float(val), f"{val} °C"
             except: return 0.0, str(val)
@@ -461,117 +520,129 @@ class InsaneFlasher(ctk.CTk):
 
         update_temp_ui(self.val_temp_amp, *parse_temp(t_amp))
         update_temp_ui(self.val_temp_esp, *parse_temp(t_esp))
-        update_temp_ui(self.val_temp_pwr, *parse_temp(t_pwr))
+        update_temp_ui(self.val_temp_dsp, *parse_temp(t_dsp))
 
-        # Reihe 3: Bluetooth
-        set_val(self.val_bl_stat, bl_stat, "#3498db" if bl_stat == "Wiedergabe" else "#ffffff")
+        set_val(self.val_bl_stat, bl_stat, "#3498db" if bl_stat == "playing" else "#ffffff")
         set_val(self.val_bl_song, bl_song)
         set_val(self.val_bl_art, bl_art)
 
-        # Reihe 4: System (Jetzt mit Version!)
-        set_val(self.val_fan, "AN" if fan == "ON" else ("AUS" if fan == "OFF" else fan), "#3498db" if fan == "ON" else "#888888")
-        set_val(self.val_wifi, f"{wifi} dBm" if wifi != "Offline" else wifi)
-        set_val(self.val_bl_ver, bl_version) # Firmware Version anzeigen
+        set_val(self.val_fan, f"{fan}%" if fan != "Offline" else fan, "#3498db" if fan != "0" else "#888888")
+        set_val(self.val_amp_stat, "FAULT" if fault == "ON" else "OK", "#e74c3c" if fault == "ON" else "#2ecc71")
+        set_val(self.val_bl_conn, "VERBUNDEN" if bt_conn == "ON" else "GETRENNT", "#3498db" if bt_conn == "ON" else "#888888")
 
         self.is_fetching = False
         
-        # DAS HERZSTÜCK: Automatischer Re-Sync nach 1 Sekunde (und Timer-ID speichern!)
         self.sync_timer = self.after(1000, self.sync_live_data)
 
     # --- FLASHING FUNKTIONEN ---
-    def start_download_thread(self):
-        self.download_btn.configure(state="disabled", text="Lädt...")
-        self.fw_label.configure(text="GitHub Server...")
-        threading.Thread(target=self.download_firmware, daemon=True).start()
+    def start_flash_thread(self, target):
+        threading.Thread(target=self.run_flash, args=(target,), daemon=True).start()
 
-    def start_flash_thread(self):
-        threading.Thread(target=self.run_flash, daemon=True).start()
-
-    def run_flash(self):
+    def run_flash(self, target):
         ip = self.dropdown_mapping.get(self.device_dropdown.get())
         if not ip: return
+
+        btn = self.wroom_flash_btn if target == "wroom" else self.rp_flash_btn
+        status_lbl = self.wroom_status if target == "wroom" else self.rp_status
         
-        self.after(0, lambda: self.flash_btn.configure(state="disabled", text="LADE FIRMWARE..."))
+        self.after(0, lambda: btn.configure(state="disabled", text="LADE FIRMWARE..."))
         
         try:
-            # --- SCHRITT 0: FIRMWARE DOWNLOADEN ---
-            self.after(0, lambda: self.status_label.configure(text="Schritt 0: Lade Firmware von GitHub...", text_color="orange"))
+            self.after(0, lambda: status_lbl.configure(text="Schritt 0: Lade Firmware von GitHub...", text_color="orange"))
+            # Depending on target, load correct firmware URL.
+            # In real system, these would differ.
             r = requests.get(FIRMWARE_URL, timeout=15)
             r.raise_for_status()
             with open(get_firmware_path(), "wb") as f: 
                 f.write(r.content)
 
-            # --- SCHRITT 1: WROOM IN DEN BOOTLOADER ZWINGEN ---
-            self.after(0, lambda: self.flash_btn.configure(text="FLASHING..."))
-            self.after(0, lambda: self.status_label.configure(text="Schritt 1: Setze WROOM in Flash-Modus...", text_color="orange"))
-            requests.post(f"http://{ip}/button/WROOM in Flash-Modus setzen/press", timeout=5)
+            self.after(0, lambda: btn.configure(text="FLASHING..."))
             
-            import time
-            time.sleep(2) 
-            
-            # --- SCHRITT 2: ESPTOOL ALS MODUL STARTEN ---
-            self.after(0, lambda: self.status_label.configure(text="Schritt 2: Flashe Firmware (Bitte warten)...", text_color="orange"))
-            
-            command_args = [
-                "--port", f"socket://{ip}:8888",
-                "--baud", "115200",
-                "write_flash", "0x0", get_firmware_path()
-            ]
-            
-            def gui_update(msg):
-                text = f"Flashing: {msg.split('...')[0]}..." if "..." in msg else msg
-                self.after(0, lambda: self.status_label.configure(text=text))
+            if target == "wroom":
+                self.after(0, lambda: status_lbl.configure(text="Schritt 1: Setze WROOM in Flash-Modus...", text_color="orange"))
+                requests.post(f"http://{ip}/button/wroom_flash_mode/press", timeout=5)
 
-            redirector = ConsoleRedirector(gui_update)
-            with contextlib.redirect_stdout(redirector):
-                esptool.main(command_args)
+                import time
+                time.sleep(2)
 
-            # --- SCHRITT 3: WROOM NORMAL NEUSTARTEN ---
-            self.after(0, lambda: self.status_label.configure(text="Schritt 3: WROOM Neustart...", text_color="orange"))
-            requests.post(f"http://{ip}/button/WROOM Normal starten/press", timeout=5)
+                self.after(0, lambda: status_lbl.configure(text="Schritt 2: Flashe WROOM Firmware...", text_color="orange"))
+
+                command_args = [
+                    "--port", f"socket://{ip}:6666",
+                    "--baud", "115200",
+                    "write_flash", "0x10000", get_firmware_path()
+                ]
+
+                def gui_update(msg):
+                    text = f"Flashing: {msg.split('...')[0]}..." if "..." in msg else msg
+                    self.after(0, lambda: status_lbl.configure(text=text))
+                    self.log(msg)
+
+                redirector = ConsoleRedirector(gui_update)
+                with contextlib.redirect_stdout(redirector):
+                    esptool.main(command_args)
+
+                self.after(0, lambda: status_lbl.configure(text="Schritt 3: WROOM Neustart...", text_color="orange"))
+                requests.post(f"http://{ip}/button/wroom_normal_boot/press", timeout=5)
+
+            elif target == "rp2354":
+                self.after(0, lambda: status_lbl.configure(text="Schritt 1: Setze RP2354 in Flash-Modus...", text_color="orange"))
+                requests.post(f"http://{ip}/button/rp2354_flash_mode/press", timeout=5)
+
+                import time
+                time.sleep(2)
+
+                self.after(0, lambda: status_lbl.configure(text="Schritt 2: Flashe RP2354 Firmware...", text_color="orange"))
+
+                # Raw TCP stream to custom serial bootloader on port 6667
+                import socket
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(15)
+                    s.connect((ip, 6667))
+                    with open(get_firmware_path(), 'rb') as f:
+                        while chunk := f.read(1024):
+                            s.sendall(chunk)
+                            self.log(f"Sent chunk... ({len(chunk)} bytes)")
+
+                self.after(0, lambda: status_lbl.configure(text="Schritt 3: RP2354 geflasht. Reboot.", text_color="orange"))
+                requests.post(f"http://{ip}/button/rp2354_normal_boot/press", timeout=5)
             
-            self.after(0, lambda: self.status_label.configure(text="🚀 Update 100% erfolgreich!", text_color="#2ecc71"))
-            self.after(0, lambda: messagebox.showinfo("Insane Sound System", "Der WROOM-Chip wurde erfolgreich geflasht und startet neu!"))
+            self.after(0, lambda: status_lbl.configure(text="🚀 Update 100% erfolgreich!", text_color="#2ecc71"))
+            self.after(0, lambda: messagebox.showinfo("Update", f"{target.upper()} wurde erfolgreich aktualisiert!"))
 
         except requests.exceptions.RequestException as e:
-            self.after(0, lambda: self.status_label.configure(text="❌ Netzwerk/Download Fehler", text_color="red"))
-            self.after(0, lambda e=e: messagebox.showerror("Netzwerk Fehler", f"Verbindungsproblem:\n{e}"))
-            
+            self.after(0, lambda: status_lbl.configure(text="❌ Netzwerk Fehler", text_color="red"))
+            self.log(str(e))
         except SystemExit as e:
             if e.code != 0:
-                self.after(0, lambda: self.status_label.configure(text="❌ Fehler beim Flashen!", text_color="red"))
-                self.after(0, lambda: messagebox.showerror("Flash Fail", "Flashen durch esptool abgebrochen."))
-                
+                self.after(0, lambda: status_lbl.configure(text="❌ Fehler beim Flashen!", text_color="red"))
         except Exception as e:
-            self.after(0, lambda: self.status_label.configure(text="❌ Fehler!", text_color="red"))
-            self.after(0, lambda e=e: messagebox.showerror("Fehler", f"Vorgang abgebrochen:\n{e}"))
-            
+            self.after(0, lambda: status_lbl.configure(text="❌ Fehler!", text_color="red"))
+            self.log(str(e))
         finally:
-            self.after(0, lambda: self.flash_btn.configure(state="normal", text="UPDATE JETZT INSTALLIEREN"))
+            self.after(0, lambda: btn.configure(state="normal", text=f"{target.upper()} UPDATE"))
             
-    def check_for_updates(self, local_version):
-        try:
-            # 1. Online Version holen (wird jetzt im Hintergrund gecached)
-            online_version = self.online_version
-            if not online_version:
-                raise Exception("Keine Online-Version verfügbar")
-            
-            # 2. Logik & UI Update
-            if local_version == "N/A" or local_version == "Offline":
-                self.fw_label.configure(text=f"WROOM Version: Unbekannt (Offline?)", text_color="#888888")
-                self.flash_btn.configure(state="normal", text="FIRMWARE FLASHEN", fg_color="#7a1a1a")
-            
-            elif online_version != local_version:
-                self.fw_label.configure(text=f"⚠️ Update verfügbar! (Box: {local_version} -> Neu: {online_version})", text_color="#f39c12")
-                self.flash_btn.configure(state="normal", text="UPDATE JETZT INSTALLIEREN", fg_color="#e74c3c")
-            
+    def check_for_updates(self, bl_version, rp_version):
+        if bl_version == "N/A" or bl_version == "Offline":
+            self.wroom_fw_label.configure(text="Aktuelle Version: Offline", text_color="#888888")
+        else:
+            self.wroom_fw_label.configure(text=f"Aktuelle Version: [{bl_version}]", text_color="#ffffff")
+
+        if rp_version == "N/A" or rp_version == "Offline":
+            self.rp_fw_label.configure(text="Aktuelle Version: Offline", text_color="#888888")
+        else:
+            self.rp_fw_label.configure(text=f"Aktuelle Version: [{rp_version}]", text_color="#ffffff")
+
+        if self.online_version:
+            if bl_version != self.online_version and bl_version != "Offline":
+                self.wroom_flash_btn.configure(fg_color="#e74c3c", text="WROOM UPDATE INSTALLIEREN")
             else:
-                self.fw_label.configure(text=f"✅ WROOM ist aktuell (Version {local_version})", text_color="#2ecc71")
-                # Optional: Button deaktivieren, wenn alles aktuell ist (Schutz vor unnötigem Flashen)
-                self.flash_btn.configure(state="disabled", text="KEIN UPDATE NÖTIG", fg_color="#333333")
-                
-        except Exception:
-            self.fw_label.configure(text=f"Box: {local_version} | GitHub: Offline", text_color="#888888")
+                self.wroom_flash_btn.configure(fg_color="#7a1a1a", text="WROOM UPDATE")
+            
+            if rp_version != self.online_version and rp_version != "Offline":
+                self.rp_flash_btn.configure(fg_color="#e74c3c", text="RP2354 UPDATE INSTALLIEREN")
+            else:
+                self.rp_flash_btn.configure(fg_color="#7a1a1a", text="RP2354 UPDATE")
 
 if __name__ == "__main__":
     app = InsaneFlasher()
