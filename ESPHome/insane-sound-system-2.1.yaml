@@ -91,6 +91,8 @@ esphome:
   project:
     name: "babeinlovexd.insane_sound_system_2.1"
     version: "0.1.0"
+  includes:
+    - "esphome/components/network/util.h"
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -138,6 +140,10 @@ wifi:
   ap:
     ssid: "Insane-Sound Fallback"
     password: !secret ap_password
+  on_connect:
+    - script.execute: update_status_leds
+  on_disconnect:
+    - script.execute: update_status_leds
 
 time:
   - platform: homeassistant
@@ -516,6 +522,51 @@ number:
 # DISPLAY (ST7789) & UI GLOBALS
 # ##############################################################################
 script:
+  - id: update_status_leds
+    mode: restart
+    then:
+      - lambda: |-
+          std::string status = id(system_status).state;
+          std::string source = id(dsp_active_source).state;
+
+          // --- LED GRÜN: System & WLAN ---
+          if (esphome::network::is_connected()) {
+            id(led_green).turn_on();
+          } else {
+            id(led_green).turn_off();
+          }
+
+          // --- LED ROT: Fehler & Warnungen ---
+          if (status != "ok" && status != "OK") {
+            id(led_red).turn_on();
+          } else {
+            id(led_red).turn_off();
+          }
+
+          // --- LED BLAU: Bluetooth ---
+          // The user requested "Bluetooth" or "BT", but our source string from RP2354 is "Bluetooth"
+          if (source == "Bluetooth" || source == "BT") {
+            id(led_blue).turn_on();
+          } else {
+            id(led_blue).turn_off();
+          }
+
+          // --- LED WEISS: Home Assistant ---
+          // Our source string from RP2354 is "WLAN"
+          if (source == "Home Assistant" || source == "WLAN" || source == "HA") {
+            id(led_white).turn_on();
+          } else {
+            id(led_white).turn_off();
+          }
+
+          // --- LED GELB: TV ---
+          // Our source string from RP2354 is "TOSLINK (TV)"
+          if (source == "TV" || source == "SPDIF" || source == "TOSLINK (TV)") {
+            id(led_yellow).turn_on();
+          } else {
+            id(led_yellow).turn_off();
+          }
+
   - id: timer_volume
     mode: restart
     then:
@@ -789,13 +840,7 @@ text_sensor:
     id: system_status
     name: "Insane System Status"
     on_value:
-      - if:
-          condition:
-            lambda: 'return x == "ok";'
-          then:
-            - switch.turn_off: led_red
-          else:
-            - switch.turn_on: led_red
+      - script.execute: update_status_leds
 
 # ##############################################################################
 # EXTERNE PYTHON KOMPONENTEN
