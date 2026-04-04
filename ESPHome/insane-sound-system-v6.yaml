@@ -49,7 +49,7 @@
 # - GPIO 16 / 17     : UART2 RX/TX (Metadata)    <-> ESP32-S3 (GPIO 44/43)
 #
 # ##############################################################################
-# HARDWARE-PIN-BELEGUNG V6 (DSP / Audio Router RP2354B):
+# HARDWARE-PIN-BELEGUNG V6 (DSP / Audio Router RP2354A):
 #
 # [I2S AUDIO IN]
 # - GP0 / GP1 / GP2  : I2S IN 1 (WLAN/HA) <- Von ESP32-S3
@@ -91,6 +91,16 @@ esphome:
   project:
     name: "babeinlovexd.insane_sound_system_v6"
     version: "6.0.0"
+  on_boot:
+    priority: -100
+    then:
+      - delay: 60s
+      - uart.write:
+          id: uart_metadata
+          data: "GET_VER\n"
+      - uart.write:
+          id: uart_rp2354
+          data: "GET_VER\n"
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -179,6 +189,14 @@ spi:
 # SENSOREN (Temperatur, Lüfter, System)
 # ##############################################################################
 sensor:
+  - platform: template
+    name: "Bluetooth Phone Volume"
+    id: bt_phone_vol
+    unit_of_measurement: "%"
+    on_value:
+      - lambda: |-
+          id(encoder_vol).set_value(x);
+
   # Environmental Temp
   - platform: lm75
     name: "ESP Ambient Temperature"
@@ -253,21 +271,6 @@ pcf8574:
     address: 0x20
 
 switch:
-  - platform: gpio
-    name: "LED 1"
-    pin:
-      pcf8574: pcf_ui
-      number: 0
-      mode: OUTPUT
-      inverted: true
-  - platform: gpio
-    name: "LED 2"
-    pin:
-      pcf8574: pcf_ui
-      number: 1
-      mode: OUTPUT
-      inverted: true
-
   # Boot Control Pins for WROOM
   - platform: gpio
     id: wroom_en
@@ -289,13 +292,62 @@ switch:
     restore_mode: ALWAYS_ON
 
 binary_sensor:
+  - platform: template
+    name: "Bluetooth Connected"
+    id: bt_connected
+    on_value:
+      - if:
+          condition:
+            lambda: 'return x;'
+          then:
+            - switch.turn_on: led_blue
+          else:
+            - switch.turn_off: led_blue
+
   # RP2354 Amp Fault parsed via UART
   - platform: template
     name: "Amp Fault"
     id: amp_fault
 
   - platform: gpio
-    name: "Button 1"
+    name: "Button Prev"
+    pin:
+      pcf8574: pcf_ui
+      number: 0
+      mode: INPUT_PULLUP
+      inverted: true
+    on_press:
+      - uart.write:
+          id: uart_metadata
+          data: "PREV\n"
+      - homeassistant.service:
+          service: media_player.media_previous_track
+          data:
+            entity_id: ${ha_player_id}
+
+  - platform: gpio
+    name: "Button Play/Pause"
+    pin:
+      pcf8574: pcf_ui
+      number: 1
+      mode: INPUT_PULLUP
+      inverted: true
+    on_press:
+      - lambda: |-
+          if (id(stream_status).state == "playing") {
+            id(uart_metadata).write_str("PAUSE\n");
+            id(stream_status).publish_state("paused");
+          } else {
+            id(uart_metadata).write_str("PLAY\n");
+            id(stream_status).publish_state("playing");
+          }
+      - homeassistant.service:
+          service: media_player.media_play_pause
+          data:
+            entity_id: ${ha_player_id}
+
+  - platform: gpio
+    name: "Button Next"
     pin:
       pcf8574: pcf_ui
       number: 2
@@ -309,29 +361,41 @@ binary_sensor:
           service: media_player.media_next_track
           data:
             entity_id: ${ha_player_id}
-switch:
-  - platform: gpio
-    name: "Button 2"
-    pin:
-      pcf8574: pcf_ui
-      number: 4
-      mode: INPUT_PULLUP
-      inverted: true
-    on_press:
-      - uart.write:
-          id: uart_metadata
-          data: "PREV\n"
-      - homeassistant.service:
-          service: media_player.media_previous_track
-          data:
-            entity_id: ${ha_player_id}
 
+switch:
   - platform: gpio
     name: "Red LED"
     id: led_red
     pin:
       pcf8574: pcf_ui
       number: 3
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "White LED"
+    id: led_white
+    pin:
+      pcf8574: pcf_ui
+      number: 4
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "Blue LED"
+    id: led_blue
+    pin:
+      pcf8574: pcf_ui
+      number: 5
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "Yellow LED"
+    id: led_yellow
+    pin:
+      pcf8574: pcf_ui
+      number: 6
       mode: OUTPUT
       inverted: true
 
@@ -360,6 +424,9 @@ switch:
             - uart.write:
                 id: uart_rp2354
                 data: "MUTE:0\n"
+            - uart.write:
+                id: uart_metadata
+                data: "PLAY\n"
           else:
             - globals.set:
                 id: is_muted
@@ -370,6 +437,9 @@ switch:
             - uart.write:
                 id: uart_rp2354
                 data: "MUTE:1\n"
+            - uart.write:
+                id: uart_metadata
+                data: "PAUSE\n"
       - homeassistant.service:
           service: media_player.media_play_pause
           data:
@@ -634,6 +704,19 @@ text_sensor:
     id: bt_artist
     name: "Bluetooth Artist"
   - platform: template
+    id: bt_album
+    name: "Bluetooth Album"
+  - platform: template
+    name: "BL Firmware Version"
+    id: wroom_version
+    icon: "mdi:chip"
+
+  - platform: template
+    name: "RP2354 Firmware Version"
+    id: rp2354_version
+    icon: "mdi:chip"
+
+  - platform: template
     id: dsp_active_source
     name: "Active Audio Source"
 
@@ -698,7 +781,11 @@ uart_reader:
     uart_id: uart_metadata
     track_sensor: bt_track
     artist_sensor: bt_artist
+    album_sensor: bt_album
     stream_status: stream_status
+    bt_conn_sensor: bt_connected
+    bt_vol_sensor: bt_phone_vol
+    wroom_ver_sensor: wroom_version
   - id: dsp_reader
     uart_id: uart_rp2354
     status_sensor: dsp_active_source
@@ -706,6 +793,7 @@ uart_reader:
     fan_sensor: fan_speed
     fault_sensor: amp_fault
     sys_stat: system_status
+    rp_ver_sensor: rp2354_version
     is_flashing: rp2354_is_flashing
 
 stream_server:
