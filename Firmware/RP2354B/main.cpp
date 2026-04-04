@@ -426,6 +426,9 @@ void loop() {
     // Send hottest/internal to S3
     Serial1.printf("TEMP:%.1f\n", internalTemp);
     
+    bool fault = (digitalRead(AMP1_FAULT) == LOW || digitalRead(AMP2_FAULT) == LOW);
+    Serial1.printf("FAULT:%d\n", fault ? 1 : 0);
+
     // Dynamic Fan Curve with Hysteresis
     static int currentFanSpeed = 0;
     
@@ -442,6 +445,9 @@ void loop() {
     
     analogWrite(FAN_PWM, currentFanSpeed);
     
+    float fanPercent = (currentFanSpeed / 255.0) * 100.0;
+    Serial1.printf("FAN:%.0f\n", fanPercent);
+
     lastBackgroundTask = millis();
   }
 }

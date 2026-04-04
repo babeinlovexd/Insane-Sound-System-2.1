@@ -25,6 +25,24 @@ logger:
 ota:
   - platform: esphome
 
+time:
+  - platform: homeassistant
+    id: ha_time
+
+color:
+  - id: my_white
+    red: 100%
+    green: 100%
+    blue: 100%
+  - id: my_blue
+    red: 0%
+    green: 50%
+    blue: 100%
+  - id: my_red
+    red: 100%
+    green: 0%
+    blue: 0%
+
 # I2C Bus for UI Expander and Temp Sensor
 i2c:
   sda: GPIO8
@@ -61,6 +79,27 @@ sensor:
     id: rp2354_temperature
     unit_of_measurement: "°C"
     device_class: "temperature"
+
+  # RP2354 Fan Speed parsed via UART
+  - platform: template
+    name: "Fan Speed"
+    id: fan_speed
+    unit_of_measurement: "%"
+
+  # Helper template for the maximum temperature
+  - platform: template
+    name: "Max Temperature"
+    id: max_temp
+    lambda: |-
+      float t1 = id(temp_env).state;
+      float t2 = id(temp_amp).state;
+      float t3 = id(temp_psu).state;
+      float t4 = id(rp2354_temperature).state;
+      if (isnan(t1)) t1 = 0;
+      if (isnan(t2)) t2 = 0;
+      if (isnan(t3)) t3 = 0;
+      if (isnan(t4)) t4 = 0;
+      return std::max({t1, t2, t3, t4});
 
 interval:
   - interval: 10s
@@ -121,6 +160,11 @@ switch:
     restore_mode: ALWAYS_ON
 
 binary_sensor:
+  # RP2354 Amp Fault parsed via UART
+  - platform: template
+    name: "Amp Fault"
+    id: amp_fault
+
   - platform: gpio
     name: "Button 1"
     pin:
@@ -144,6 +188,28 @@ binary_sensor:
       mode: INPUT_PULLUP
       inverted: true
     id: encoder_btn
+    on_press:
+      - globals.set:
+          id: ui_mode
+          value: '2'
+      - if:
+          condition:
+            lambda: 'return id(is_muted);'
+          then:
+            - globals.set:
+                id: is_muted
+                value: 'false'
+            - globals.set:
+                id: current_action_symbol
+                value: '">"'
+          else:
+            - globals.set:
+                id: is_muted
+                value: 'true'
+            - globals.set:
+                id: current_action_symbol
+                value: '"||"'
+      - script.execute: timer_action
 
 sensor:
   - platform: rotary_encoder
@@ -152,11 +218,64 @@ sensor:
     pin_b: GPIO16
     id: encoder_vol
     resolution: 4
+    min_value: 0
+    max_value: 100
+    on_value:
+      - globals.set:
+          id: ui_mode
+          value: '1'
+      - script.execute: timer_volume
 
 # SPI Bus for Display
 spi:
   clk_pin: GPIO12
   mosi_pin: GPIO11
+
+globals:
+  - id: ui_mode
+    type: int
+    initial_value: '0' # 0 = Normal, 1 = Volume Bar, 2 = Action Symbol
+  - id: is_muted
+    type: bool
+    initial_value: 'false'
+  - id: current_action_symbol
+    type: std::string
+    initial_value: '""'
+  - id: display_awake
+    type: bool
+    initial_value: 'true'
+
+script:
+  - id: timer_volume
+    mode: restart
+    then:
+      - delay: 3s
+      - globals.set:
+          id: ui_mode
+          value: '0'
+
+  - id: timer_action
+    mode: restart
+    then:
+      - delay: 1s
+      - globals.set:
+          id: ui_mode
+          value: '0'
+
+  - id: timer_sleep
+    mode: restart
+    then:
+      - delay: 3min
+      - if:
+          condition:
+            not:
+              text_sensor.state:
+                id: stream_status
+                state: "playing"
+          then:
+            - globals.set:
+                id: display_awake
+                value: 'false'
 
 # ST7789 Display
 display:
@@ -165,22 +284,68 @@ display:
     cs_pin: GPIO10
     dc_pin: GPIO9
     reset_pin: GPIO40
-    # Note: Backlight is controlled by RP2354, not S3
-    rotation: 0
+    rotation: 90 # Wichtig für 284x76 Querformat
     pages:
       - id: page1
         lambda: |-
-          it.print(0, 0, id(font1), "Insane Audio V6");
-          it.printf(0, 20, id(font2), "Vol: %d", (int)id(encoder_vol).state);
-          it.printf(0, 60, id(font1), "Track: %s", id(bt_track).state.c_str());
-          it.printf(0, 80, id(font1), "Artist: %s", id(bt_artist).state.c_str());
+          // Wenn Display schlafen soll, nichts zeichnen
+          if (!id(display_awake)) {
+            return;
+          }
+
+          // --- OBERE LEISTE (Y: 0 bis 15) ---
+          // 1. Datum & Uhrzeit
+          it.strftime(0, 0, id(font_small), TextAlign::TOP_LEFT, "%d.%m. %H:%M", id(ha_time).now());
+
+          // 2. Heißester Spot & Lüfter-Balken (Rechts)
+          it.printf(250, 0, id(font_small), TextAlign::TOP_RIGHT, "%.1f°C", id(max_temp).state);
+
+          int fan_bars = (int)(id(fan_speed).state / 25.0);
+          for(int i=0; i<fan_bars; i++) {
+            it.filled_rect(255 + (i*6), 8 - (i*2), 4, 4 + (i*2), id(my_white));
+          }
+
+          // --- MITTLERER BEREICH (Y: 20 bis 55) ---
+          if (id(is_muted)) {
+             // MUTE Ansicht
+             it.print(142, 38, id(font_large), TextAlign::CENTER, "MUTE");
+
+          } else if (id(ui_mode) == 1) {
+             // LAUTSTÄRKE Balken
+             it.filled_rect(42, 35, (id(encoder_vol).state * 2), 15, id(my_blue)); // max 200px
+             it.rect(42, 35, 200, 15, id(my_white)); // Rahmen
+
+          } else if (id(ui_mode) == 2) {
+             // ACTION SYMBOL (z.B. "||", ">", "<<", ">>")
+             it.printf(142, 38, id(font_large), TextAlign::CENTER, "%s", id(current_action_symbol).c_str());
+
+          } else {
+             // STANDARD (Titel & Interpret)
+             it.printf(142, 25, id(font_medium), TextAlign::CENTER, "%s", id(bt_track).state.c_str());
+             it.printf(142, 45, id(font_small), TextAlign::CENTER, "%s", id(bt_artist).state.c_str());
+          }
+
+          // --- UNTERE LEISTE (Y: 60) ---
+          // Fehler links unten
+          if (id(amp_fault).state) {
+            it.print(0, 60, id(font_small), id(my_red), TextAlign::TOP_LEFT, "FAULT");
+          }
+
+          // Source zentriert
+          it.printf(142, 60, id(font_small), TextAlign::TOP_CENTER, "%s", id(dsp_active_source).state.c_str());
+
+          // Lautstärke rechts unten
+          it.printf(284, 60, id(font_small), TextAlign::TOP_RIGHT, "%d%%", (int)id(encoder_vol).state);
 
 font:
   - file: "gfonts://Roboto"
-    id: font1
-    size: 16
+    id: font_small
+    size: 12
   - file: "gfonts://Roboto"
-    id: font2
+    id: font_medium
+    size: 18
+  - file: "gfonts://Roboto"
+    id: font_large
     size: 24
 
 # I2S Audio Output (To RP2354)
@@ -237,15 +402,20 @@ text_sensor:
     id: dsp_active_source
     name: "Active Audio Source"
 
+  - platform: template
+    id: stream_status
+    name: "Stream Status"
+    # Handled entirely by the UART reader and Home Assistant bridges
+
 # Custom Component to read lines from UART and populate sensors
 custom_component:
   - lambda: |-
       auto *wroom_reader = new custom_uart_reader::CustomUARTReader(
-          id(uart_metadata), id(bt_track), id(bt_artist), nullptr, nullptr, nullptr);
+          id(uart_metadata), id(bt_track), id(bt_artist), nullptr, nullptr, nullptr, nullptr, id(stream_status), nullptr);
           // Note: WROOM Metadata UART is isolated, no proxy byte stealing is possible.
       
       auto *dsp_reader = new custom_uart_reader::CustomUARTReader(
-          id(uart_rp2354), nullptr, nullptr, id(dsp_active_source), id(rp2354_temperature), &id(rp2354_is_flashing));
+          id(uart_rp2354), nullptr, nullptr, id(dsp_active_source), id(rp2354_temperature), id(fan_speed), id(amp_fault), nullptr, &id(rp2354_is_flashing));
           // DSP shares UART2 for Metadata & Proxy, so we pass the flashing boolean to pause reading.
           
       App.register_component(wroom_reader);
