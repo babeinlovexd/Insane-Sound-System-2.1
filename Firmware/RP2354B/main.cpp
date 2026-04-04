@@ -6,6 +6,7 @@
 #include "hardware/pwm.h"
 #include "i2s_slave.h"
 #include "i2s_dual_master.h"
+#include "ws2805_pio.h"
 
 // Note: Standard Arduino-Pico I2S Objects removed. 
 // We exclusively use custom PIO state machines for routing.
@@ -53,6 +54,7 @@
 #define TOSLINK_IN   28
 
 SPDIF_Decoder* tvDecoder;
+WS2805* leds;
 
 // ---------------------------------------------------------
 // Zero-Click Routing Logic
@@ -178,6 +180,11 @@ void setup() {
   pinMode(BL_PWM, OUTPUT);
   analogWrite(FAN_PWM, 0); // Off initially
   analogWrite(BL_PWM, 255); // Full brightness initially
+
+  // Initialize WS2805 LEDs on GP20
+  // PIO1 SM1 is used since PIO1 SM0 is for I2S Out, and PIO0 is full.
+  leds = new WS2805(pio1, 1, LED_DATA, 10); // Assume 10 LEDs for now, but colors sent to all
+  leds->show(0, 0, 0, 0, 0); // Turn off initially
 
   // Setup Amp Control Pins
   pinMode(AMP1_FAULT, INPUT);
@@ -371,6 +378,15 @@ void loop() {
             Wire.endTransmission();
         }
     }
+    // Check for LED color from UI (Format: "LED:r:g:b:w1:w2")
+    else if (cmd.startsWith("LED:")) {
+        int r, g, b, w1, w2;
+        if (sscanf(cmd.c_str(), "LED:%d:%d:%d:%d:%d", &r, &g, &b, &w1, &w2) == 5) {
+            if (leds) {
+                leds->show(r, g, b, w1, w2);
+            }
+        }
+    }
   }
   
   // Prio 2 (S/PDIF detection)
@@ -385,14 +401,15 @@ void loop() {
               tvActive = tvDecoder->has_active_clock(dma_in_chan);
           } else {
               uint tv_sm = tvDecoder->get_sm();
-              tvActive = (pio_sm_get_rx_fifo_level(pio0, tv_sm) > 0); 
+              // A single rogue bit could push 1 frame. To be robust, we only consider
+              // TV active if the FIFO is completely full (stalled because of continuous data).
+              // The RP2040 PIO RX FIFO has a depth of 4 (or 8 if joined, our decoder joins RX).
+              tvActive = (pio_sm_get_rx_fifo_level(pio0, tv_sm) >= 4);
               
               // CRITICAL: If the clock is active but we are NOT routed to TV,
               // the DMA is not draining this FIFO. We MUST manually clear it here
-              // so we don't latch onto a stale 1-packet signal forever.
-              if (tvActive) {
-                  pio_sm_clear_fifos(pio0, tv_sm);
-              }
+              // so we don't latch onto a stale signal forever.
+              pio_sm_clear_fifos(pio0, tv_sm);
           }
       }
       lastSpdifCheck = millis();
