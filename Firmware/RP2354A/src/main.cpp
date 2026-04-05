@@ -609,6 +609,14 @@ void loop() {
         }
         analogWrite(FAN_PWM, pwmValue);
     }
+    // Check for Display Backlight (DIM) control (Format: "DIM:x")
+    else if (cmd.startsWith("DIM:")) {
+        int dimCmd = cmd.substring(4).toInt(); // 0 to 100
+        // Map 0-100 to 8-bit PWM (0-255)
+        int pwmValue = (dimCmd * 255) / 100;
+        analogWrite(BL_PWM, pwmValue);
+        Serial.printf("Backlight set to %d%%\n", dimCmd);
+    }
     // Check for DSP crossover logic (Format: "CROSSOVER:x")
     else if (cmd.startsWith("CROSSOVER:")) {
         int crossoverFreq = cmd.substring(10).toInt();

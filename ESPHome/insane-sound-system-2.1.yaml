@@ -500,6 +500,23 @@ number:
               entity_id: ${ha_player_id}
               volume_level: !lambda "return x / 100.0;"
 
+  # Display Backlight Helligkeit
+  - platform: template
+    name: "Display Helligkeit"
+    id: bl_brightness_slider
+    icon: "mdi:brightness-6"
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 100
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            char buf[20];
+            sprintf(buf, "DIM:%.0f\n", x);
+            id(uart_rp2354).write_str(buf);
+
   # Master Volume Limit
   - platform: template
     name: "Master Lautstärke Limit"
@@ -640,6 +657,7 @@ number:
       inverted: true
     id: encoder_btn
     on_press:
+      - script.execute: wake_display
       - globals.set:
           id: ui_mode
           value: '2'
@@ -757,6 +775,21 @@ script:
             - globals.set:
                 id: display_awake
                 value: 'false'
+            - lambda: |-
+                // Display Backlight ausschalten
+                id(uart_rp2354).write_str("DIM:0\n");
+
+  - id: wake_display
+    mode: single
+    then:
+      - globals.set:
+          id: display_awake
+          value: 'true'
+      - lambda: |-
+          // Display Backlight wiederherstellen
+          char buf[20];
+          sprintf(buf, "DIM:%.0f\n", id(bl_brightness_slider).state);
+          id(uart_rp2354).write_str(buf);
 
 # ST7789 Display
 display:
@@ -971,9 +1004,7 @@ text_sensor:
                   - text_sensor.template.publish:
                       id: stream_status
                       state: "playing"
-                  - globals.set:
-                      id: display_awake
-                      value: 'true'
+                  - script.execute: wake_display
                 else:
                   - text_sensor.template.publish:
                       id: stream_status
@@ -989,9 +1020,7 @@ text_sensor:
           condition:
             lambda: 'return x == "playing";'
           then:
-            - globals.set:
-                id: display_awake
-                value: 'true'
+            - script.execute: wake_display
             - script.stop: timer_sleep
           else:
             - script.execute: timer_sleep
