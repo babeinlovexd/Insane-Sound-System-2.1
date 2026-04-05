@@ -105,7 +105,7 @@ The mapping guarantees logical separation of buses, handles the advanced 2.1 aud
 | - Fan Control | GP18 | -> to Fan circuit |
 | - Display Backlight| GP19 | -> to ST7789 BL pin |
 | **LED Control** | | |
-| - 1-Wire Data | GP20 | -> SN74AHCT125D -> WS2805 |
+| - 1-Wire Data | GP16 | -> SN74AHCT125D -> WS2805 |
 | **UART (Flashing)** | | <- from ESP32-S3 |
 | - RX / TX | GP21 / GP24 | |
 
