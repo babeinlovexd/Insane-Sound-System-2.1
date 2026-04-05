@@ -46,7 +46,7 @@ The mapping guarantees logical separation of buses, handles the advanced 2.1 aud
 
 ---
 
-## 2. ESP32-WROOM-32D (Bluetooth Receiver)
+### 2. ESP32-WROOM-32D (Bluetooth Receiver)
 
 **Roles:** A2DP Bluetooth Sink, Metadata Extraction.
 
@@ -102,27 +102,105 @@ The mapping guarantees logical separation of buses, handles the advanced 2.1 aud
 | **Status Signal** | | <- from ESP32-WROOM-32D |
 | - BT Active | GP26 | |
 | **PWM Outputs** | | |
-| - Fan Control | GP18 | 100Hz PWM (30% min power, "0 means 0") |
-| - Display Backlight| GP19 | 8-Bit PWM (DIM:x) |
-| **LED Control** | | -> to WS2805 |
-| - 1-Wire Data | GP16 | 40-bit MSB-first protocol with >280us Reset |
-| **UART (Flashing & Telemetry)**| | <-> with ESP32-S3 |
-| - RX (from S3 TX) | GP21 | |
-| - TX (to S3 RX) | GP24 | |
+| - Fan Control | GP18 | -> to Fan circuit |
+| - Display Backlight| GP19 | -> to ST7789 BL pin |
+| **LED Control** | | |
+| - 1-Wire Data | GP20 | -> SN74AHCT125D -> WS2805 |
+| **UART (Flashing)** | | <- from ESP32-S3 |
+| - RX / TX | GP21 / GP24 | |
 
----
+## PART 2: PERIPHERAL COMPONENTS (Bottom-Up View)
 
-## 4. UI Extender (PCF8574T via I2C on ESP32-S3)
+### 4.1. PCF8574T (I2C I/O Expander)
+**Function:** Collects front panel button inputs and controls UI LEDs. **I2C Address:** `0x20`
 
-**Roles:** Front panel buttons and status LEDs.
-
-| Component | PCF Pin | Notes |
+| PCF Pin | Function | Target / Note |
 | :--- | :--- | :--- |
-| Button Prev | P0 | INPUT_PULLUP (Inverted) |
-| Button Play/Pause | P1 | INPUT_PULLUP (Inverted) |
-| Button Next | P2 | INPUT_PULLUP (Inverted) |
-| Red LED | P3 | OUTPUT (Inverted) - Faults & Warnings |
-| White LED | P4 | OUTPUT (Inverted) - HA Audio Source Active |
-| Blue LED | P5 | OUTPUT (Inverted) - BT Audio Source Active |
-| Green LED | P6 | OUTPUT (Inverted) - System Ready / WLAN OK |
-| Yellow LED | P7 | OUTPUT (Inverted) - TOSLINK Source Active |
+| **SDA / SCL** | I2C Bus | <-> ESP32-S3 (GPIO 8 / GPIO 18) |
+| **P0** | Input | Button "Prev" |
+| **P1** | Input | Button "Play/Pause" |
+| **P2** | Input | Button "Next" |
+| **P3** | Output | UI LED: Red (Warning) |
+| **P4** | Output | UI LED: White (HA active) |
+| **P5** | Output | UI LED: Blue (BT active) |
+| **P6** | Output | UI LED: Green (System Ready) |
+| **P7** | Output | UI LED: Yellow (TV active) |
+
+### 4.2. LM75AD x3 (I2C Digital Temperature Sensors)
+**Funktion:** Kontinuierliche Temperaturüberwachung für das thermische Management des S3.
+**Bus:** Gesteuert über ESP32-S3 (SDA: GPIO 8, SCL: GPIO 18).
+
+#### Pinout des LM75AD (SOIC-8 / TSSOP-8)
+| Pin | Name | Funktion | Ziel / Anmerkung |
+| :--- | :--- | :--- | :--- |
+| 1 | **SDA** | I2C Data | <-> ESP32-S3 (GPIO 8) |
+| 2 | **SCL** | I2C Clock | <- ESP32-S3 (GPIO 18) |
+| 3 | **OS** | Over-temp Output | **NC** (Offen lassen oder Pull-Up - wird via Software gelöst) |
+| 4 | **GND** | Ground | Gemeinsame System-Masse |
+| 5 | **A2** | Address Bit 2 | Hardwired (MSB der Adresse) |
+| 6 | **A1** | Address Bit 1 | Hardwired |
+| 7 | **A0** | Address Bit 0 | Hardwired (LSB der Adresse) |
+| 8 | **VCC** | Power | **+3.3V** (Vom S3 Spannungsregler) |
+
+#### Adress-Konfiguration (Hardware-Strapping)
+Die Basis-Adresse des LM75AD ist binär `1001` (0x48). Die Pins A2, A1 und A0 füllen die letzten 3 Bits auf.
+
+| Sensor-Instanz | A2 (Pin 5) | A1 (Pin 6) | A0 (Pin 7) | I2C Adresse |
+| :--- | :--- | :--- | :--- | :--- |
+| **LM75AD #1 (Env)** | **GND** (0) | **GND** (0) | **GND** (0) | `0x48` |
+| **LM75AD #2 (Amp)** | **GND** (0) | **GND** (0) | **VCC** (1) | `0x49` |
+| **LM75AD #3 (PSU)** | **GND** (0) | **VCC** (1) | **GND** (0) | `0x4A` |
+
+### 4.3. ST7789 (Widescreen LCD Display)
+**Function:** Visual interface. Controlled by S3, backlight by RP2354.
+
+| Display Pin | Function | Target / Note |
+| :--- | :--- | :--- |
+| **SDA (MOSI)** | SPI Data | <- ESP32-S3 (GPIO 11) |
+| **SCL (SCLK)** | SPI Clock | <- ESP32-S3 (GPIO 12) |
+| **CS** | Chip Select | <- ESP32-S3 (GPIO 10) |
+| **DC** | Data/Command | <- ESP32-S3 (GPIO 9) |
+| **RES** | Reset | <- ESP32-S3 (GPIO 40) |
+| **BLK** | Backlight PWM | <- RP2354 (GP19) |
+
+### 4.4. Infineon MA12070P x2 (Class-D Amplifiers)
+**Function:** The audio muscles. Amp 1 runs in BTL stereo mode (Front L/R), Amp 2 strictly in PBTL mono mode (Subwoofer).
+
+| Amp Pin | Amp 1 (Front L/R) | Amp 2 (Subwoofer) | Target / Note |
+| :--- | :--- | :--- | :--- |
+| **I2C Address**| `0x20` | `0x21` | Hardware strapping of address pins |
+| **I2C Bus** | SDA / SCL | SDA / SCL | <-> RP2354 (GP12 / GP13) |
+| **I2S BCLK** | <- RP2354 (GP6) | <- RP2354 (GP6) | Shared clock bus |
+| **I2S LRCK** | <- RP2354 (GP7) | <- RP2354 (GP7) | Shared clock bus |
+| **I2S DIN** | <- RP2354 (GP8) | <- RP2354 (GP9) | Discrete audio paths from DSP |
+| **/ENABLE** | <- RP2354 (GP20) | <- RP2354 (GP17) | Anti-pop control |
+| **/ERROR** | -> RP2354 (GP14) | -> RP2354 (GP15) | Fault feedback to DSP |
+
+### 4.5. Native USB-C Interface
+**Function:** Flashing the S3 and serial console via USB-JTAG.
+
+| USB Pin | Function | Target / Note |
+| :--- | :--- | :--- |
+| **D-** | Data Minus | <-> ESP32-S3 (GPIO 19) |
+| **D+** | Data Plus | <-> ESP32-S3 (GPIO 20) |
+| **VBUS** | 5V Power | -> 5V rail / Voltage regulator |
+
+### 4.6. SN74AHCT125D (Level Shifter)
+**Funktion:** Wandelt das 3,3V Logiksignal des RP2354 in ein sauberes 5V Signal für die WS2805 LEDs um. Der Baustein fungiert als Quad-Buffer, wobei nur der erste Kanal aktiv genutzt wird.
+
+| Pin | Name | Funktion | Ziel / Anmerkung |
+| :--- | :--- | :--- | :--- |
+| 1 | **1OE** | Output Enable 1 | **GND** (Aktiviert Kanal 1) |
+| 2 | **1A** | Input 1 | <- RP2354 (GP16) |
+| 3 | **1Y** | Output 1 | -> **WS2805 Data IN** (5V Pegel) |
+| 4 | **2OE** | Output Enable 2 | **GND** (Terminierung gegen Floating) |
+| 5 | **2A** | Input 2 | **GND** (Terminierung gegen Floating) |
+| 6 | **2Y** | Output 2 | **NC** (Offen lassen!) |
+| 7 | **GND** | Ground | Gemeinsame System-Masse |
+| 8 | **3Y** | Output 3 | **NC** (Offen lassen!) |
+| 9 | **3A** | Input 3 | **GND** (Terminierung gegen Floating) |
+| 10 | **3OE** | Output Enable 3 | **GND** (Terminierung gegen Floating) |
+| 11 | **4Y** | Output 4 | **NC** (Offen lassen!) |
+| 12 | **4A** | Input 4 | **GND** (Terminierung gegen Floating) |
+| 13 | **4OE** | Output Enable 4 | **GND** (Terminierung gegen Floating) |
+| 14 | **VCC** | Power | **+5V** Systemspannung |
