@@ -41,6 +41,10 @@ Als **Home Assistant Boss** stellt er via ESPHome alle Regler (EQ, Crossover, Vo
 
 ---
 
+### 📚 Dokumentation
+[📂 Projekt-Struktur](.github/CONTRIBUTING.md) | [🔌 Pin Mapping](Firmware/Pin_Mapping.md) | [🛠️ Setup-Guide](#) | [⚖️ Lizenz](LICENSE)
+
+---
 
 ## ⚖️ Lizenz
 Dieses komplette Projekt (Hardware und Software) steht unter der [CC BY-NC-SA 4.0 Lizenz](https://creativecommons.org/licenses/by-nc-sa/4.0/). 
