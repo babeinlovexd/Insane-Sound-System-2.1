@@ -1,23 +1,24 @@
-## 📝 Beschreibung der Änderungen
-Bitte beschreibe kurz, was du geändert hast und warum. Welches Problem wird gelöst? Welches neue Feature wird hinzugefügt?
+## Description
+## Type of Change
+- [ ] 🚀 Feature (New DSP filter, UI element, etc.)
+- [ ] 🐛 Bugfix (Fixing audio dropouts, thermal logic, etc.)
+- [ ] 📝 Documentation (Updating Pin Mapping, README, etc.)
+- [ ] 🔧 Refactoring (Code cleanup without functional changes)
 
-## 🛠️ Art der Änderung
-- [ ] 🐛 Bugfix (behebt einen Fehler in Hard- oder Software)
-- [ ] 💡 Neues Feature (fügt Funktionalität hinzu)
-- [ ] 🎨 Refactoring / Dokumentation (keine Code-Änderung)
-- [ ] ⚡ Performance-Verbesserung
-- [ ] 🚀 Hardware-Optimierung (PCB / BOM)
+## Targeted Chip(s)
+- [ ] ESP32-S3 (Director)
+- [ ] ESP32-WROOM-32D (Radio)
+- [ ] RP2354A (DSP)
+- [ ] N/A (Documentation/Workflow)
 
-## ✅ Checkliste
-Bevor du den PR abschickst, prüfe bitte folgende Punkte:
-- [ ] Mein Code/Layout folgt dem Stil des Projekts.
-- [ ] Ich habe meine Änderungen auf der **V4-Hardware live getestet** (falls zutreffend).
-- [ ] Die Dokumentation (README/Wiki) wurde entsprechend aktualisiert.
-- [ ] Bei Hardware-Änderungen: Die 2mm Leiterbahnbreite für 24V-LEDs wurde eingehalten.
-- [ ] Bei Software-Änderungen: Ich habe sichergestellt, dass keine `secrets` (WLAN/Passwörter) im Code stehen.
+## Checklist
+- [ ] My code follows the style guidelines of this project.
+- [ ] I have performed a self-review of my code.
+- [ ] I have commented my code, particularly in hard-to-understand areas.
+- [ ] I have updated the documentation (README, Pin_Mapping, etc.).
+- [ ] I have tested the changes on actual hardware.
+- [ ] The build passes in the GitHub Actions CI/CD.
 
-## 📷 Screenshots / Belege (optional)
-Falls du das Platinen-Layout geändert oder ein neues LED-Feature implementiert hast, füge hier bitte ein Foto oder einen Screenshot an.
-
-## 🔗 Verknüpfte Issues / Discussions
-Gibt es ein bestehendes Issue oder eine Diskussion dazu? (z.B. "Closes #12" oder "Refers to Discussion #5")
+## Screenshots / Audio Samples
+## Hardware Version
+Tested on PCB Version: `Vx.x.x`
