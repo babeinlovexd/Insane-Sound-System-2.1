@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/Home_Assistant-Native-41BDF5?style=for-the-badge&logo=home-assistant" alt="Home Assistant">
   <br> <br>
   
-  <img src="https://img.shields.io/badge/Hardware-2.1.5-f39c12?style=for-the-badge&logo=pcb" alt="Hardware Version">
+  <img src="https://img.shields.io/badge/Hardware-0.0.0-f39c12?style=for-the-badge&logo=pcb" alt="Hardware Version">
   <img src="https://img.shields.io/badge/Main_Brain-ESP32--S3-E7352C?style=for-the-badge&logo=espressif" alt="Main: ESP32-S3">
   <img src="https://img.shields.io/badge/BT_Radio-WROOM--32D-0052CC?style=for-the-badge&logo=bluetooth" alt="BT: WROOM-32D">
   <img src="https://img.shields.io/badge/DSP-RP2354A-8A2BE2?style=for-the-badge&logo=raspberrypi" alt="DSP: RP2354A">
