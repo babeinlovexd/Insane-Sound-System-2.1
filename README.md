@@ -3,23 +3,25 @@
 # 🔊 Insane Sound System 2.1
 ### The Ultimate Triple-Brain Open-Source DSP Audio Matrix
 
-  <img src="https://img.shields.io/github/v/release/babeinlovexd/Insane-Sound-System-2.1?style=for-the-badge&color=2ecc71" alt="Latest Release">
-  <img src="https://img.shields.io/badge/Status-BETA-ff9800?style=for-the-badge&logo=test-tube" alt="Status: Beta">
-  
-  <img src="https://img.shields.io/badge/ESPHome-Ready-03A9F4?style=for-the-badge&logo=esphome" alt="ESPHome">
-  <img src="https://img.shields.io/badge/Home_Assistant-Native-41BDF5?style=for-the-badge&logo=home-assistant" alt="Home Assistant">
-  <br> <br>
-  
-  <img src="https://img.shields.io/badge/Hardware-V0.0.0-f39c12?style=for-the-badge&logo=pcb" alt="Hardware Version">
-  <img src="https://img.shields.io/badge/Main_Brain-ESP32--S3-E7352C?style=for-the-badge&logo=espressif" alt="Main: ESP32-S3">
-  <img src="https://img.shields.io/badge/BT_Radio-WROOM--32D-0052CC?style=for-the-badge&logo=bluetooth" alt="BT: WROOM-32D">
-  <img src="https://img.shields.io/badge/DSP-RP2354A-8A2BE2?style=for-the-badge&logo=raspberrypi" alt="DSP: RP2354A">
-  <img src="https://img.shields.io/badge/Amps-Dual_MA12070P-e74c3c?style=for-the-badge&logo=stmicroelectronics" alt="Amps: MA12070P">
-  <br> <br>
-  
-  <img src="https://img.shields.io/github/actions/workflow/status/babeinlovexd/Insane-Sound-System-2.1/release-firmware.yml?style=for-the-badge&logo=githubactions&logoColor=white" alt="CI/CD Build Status">
-  <img src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey?style=for-the-badge&logo=creative-commons" alt="License: CC BY-NC-SA 4.0">
-<br> <br>
+<img src="https://img.shields.io/github/v/release/babeinlovexd/Insane-Sound-System-2.1?style=for-the-badge&color=2ecc71" alt="Latest Release">
+<img src="https://img.shields.io/badge/Hardware-V0.0.0-f39c12?style=for-the-badge&logo=pcb" alt="Hardware Version">
+<img src="https://img.shields.io/badge/Status-BETA-ff9800?style=for-the-badge&logo=test-tube" alt="Status: Beta">
+<img src="https://img.shields.io/github/actions/workflow/status/babeinlovexd/Insane-Sound-System-2.1/release-firmware.yml?style=for-the-badge&logo=githubactions&logoColor=white" alt="CI/CD Build Status">
+<br><br>
+
+<img src="https://img.shields.io/badge/ESPHome-Ready-03A9F4?style=for-the-badge&logo=esphome" alt="ESPHome">
+<img src="https://img.shields.io/badge/Home_Assistant-Native-41BDF5?style=for-the-badge&logo=home-assistant" alt="Home Assistant">
+<img src="https://img.shields.io/badge/PlatformIO-RP2354%20%26%20WROOM--32D-F6822A?style=for-the-badge&logo=platformio&logoColor=white" alt="PlatformIO">
+<br><br>
+
+<img src="https://img.shields.io/badge/Main_Brain-ESP32--S3-E7352C?style=for-the-badge&logo=espressif" alt="Main: ESP32-S3">
+<img src="https://img.shields.io/badge/BT_Radio-WROOM--32D-0052CC?style=for-the-badge&logo=bluetooth" alt="BT: WROOM-32D">
+<img src="https://img.shields.io/badge/DSP-RP2354A-8A2BE2?style=for-the-badge&logo=raspberrypi" alt="DSP: RP2354A">
+<img src="https://img.shields.io/badge/Amps-Dual_MA12070P-e74c3c?style=for-the-badge&logo=stmicroelectronics" alt="Amps: MA12070P">
+<br><br>
+
+<img src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey?style=for-the-badge&logo=creative-commons" alt="License: CC BY-NC-SA 4.0">
+<br><br>
 
 > **⚠️ WICHTIGER HINWEIS:** Das Projekt befindet sich aktuell im **BETA-Status**. Die Hardware-Architektur steht, aber die Firmware wird aktiv weiterentwickelt. Expect some noise, expect some bugs – but mostly, expect insane audio!
 
