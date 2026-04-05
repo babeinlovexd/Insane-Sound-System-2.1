@@ -1,45 +1,46 @@
-# Insane Sound System 2.1 - Pin Mapping
+# Insane Sound System V1.0.0 (2.1) - Pin Mapping
 
-This document describes the pin mapping for all 3 microcontrollers as well as the detailed wiring of the peripheral components in the 2.1 system.
+This document outlines the complete and final pin mapping for all 3 microcontrollers in the V1.0.0 2.1 system.
+The mapping guarantees logical separation of buses, handles the advanced 2.1 audio routing, and integrates all components including I2C telemetry, dual-core DSP, and custom LED protocols.
 
-## PART 1: MICROCONTROLLER (Top-Down View)
+---
 
-### 1. ESP32-S3 (Main Controller & HA Bridge)
+## 1. ESP32-S3 (Master Controller & HA Bridge)
 
-**Roles:** Media Player (HA), Display Driver, UI Polling, Encoder Reading, Proxy Flasher.
+**Roles:** Media Player (HA), Display Driver, UI Polling, Encoder Reading, Flashing Proxy, Fan Curve Logic, Master EQ/Crossover Control.
 
 | Component / Function | S3 Pin | Notes |
 | :--- | :--- | :--- |
-| **I2S (HA Audio out)** | | -> to RP2354 |
+| **I2S (HA Audio out)** | | -> to RP2354A |
 | - BCLK | GPIO 4 | |
 | - LRCK (WS) | GPIO 5 | |
 | - DOUT | GPIO 6 | |
-| **SPI (ST7789 Display)** | | |
+| **SPI (ST7789 Display)** | | -> to ST7789 |
 | - MOSI | GPIO 11 | |
 | - SCLK | GPIO 12 | |
 | - CS | GPIO 10 | |
 | - DC | GPIO 9 | |
 | - RES | GPIO 40 | Changed from 46 (Strapping Pin) |
 | **I2C Bus** | | -> to PCF8574T (UI) & LM75AD (Temp) |
-| - SDA | GPIO 8 | |
-| - SCL | GPIO 18 | |
+| - SDA | GPIO 8 | LM75AD Sensors: 0x48 (Env), 0x49 (Amp), 0x4A (PSU) |
+| - SCL | GPIO 18 | PCF8574T: 0x20 (Buttons/LEDs) |
 | **Rotary Encoder** | | Direct inputs |
 | - CLK | GPIO 15 | |
 | - DT | GPIO 16 | |
 | - SW (Button) | GPIO 17 | |
 | **Native USB (Console/Log)** | | USB CDC (No UART needed) |
-| - D- / D+ | GPIO 19, 20 | Internal USB PHY |
-| **UART 0 (Proxy Flash WROOM)** | | -> to ESP32-32D (Bootloader UART) |
-| - TX (to 32D RX0) | GPIO 42 | |
-| - RX (from 32D TX0)| GPIO 41 | |
+| - D- / D+ | GPIO 19 / 20 | Internal USB PHY |
+| **UART 0 (Proxy Flash WROOM)** | | -> to ESP32-WROOM-32D |
+| - TX (to 32D RX0) | GPIO 42 | Bootloader UART |
+| - RX (from 32D TX0)| GPIO 41 | Bootloader UART |
 | - EN (32D Reset) | GPIO 39 | |
 | - IO0 (32D Boot) | GPIO 38 | |
-| **UART 1 (Metadata & Control)**| | <-> with ESP32-32D (Secondary UART) |
-| - TX (to 32D RX2) | GPIO 44 | Sends Play/Pause/Override Commands |
+| **UART 1 (Metadata WROOM)**| | <-> with ESP32-WROOM-32D |
+| - TX (to 32D RX2) | GPIO 44 | Sends Play/Pause/Vol Commands |
 | - RX (from 32D TX2)| GPIO 43 | Receives Metadata (Title/Artist) |
-| **UART 2 (Proxy Flash & DSP Control)**| | -> to RP2354 |
-| - TX (to RP RX) | GPIO 2 | |
-| - RX (from RP TX) | GPIO 1 | |
+| **UART 2 (Proxy Flash & DSP Control)**| | <-> with RP2354A |
+| - TX (to RP RX) | GPIO 2 | Sends Vol, Crossover, EQ, Fan, LED |
+| - RX (from RP TX) | GPIO 1 | Receives Temp, Faults, Status |
 | - RP Reset (`RUN`) | GPIO 47 | Pulls DSP to Reset |
 | - RP Boot (`QSPI_CS`) | GPIO 48 | Forces DSP into BOOTSEL mode |
 
@@ -47,58 +48,58 @@ This document describes the pin mapping for all 3 microcontrollers as well as th
 
 ### 2. ESP32-WROOM-32D (Bluetooth Receiver)
 
-**Roles:** A2DP Bluetooth Sink, Metadata extraction.
+**Roles:** A2DP Bluetooth Sink, Metadata Extraction.
 
 | Component / Function | 32D Pin | Notes |
 | :--- | :--- | :--- |
-| **I2S (BT Audio out)** | | -> to RP2354 |
-| - BCLK | GPIO 26 | |
-| - LRCK (WS) | GPIO 25 | |
+| **I2S (BT Audio out)** | | -> to RP2354A |
+| - BCLK | GPIO 26 | Master Mode |
+| - LRCK (WS) | GPIO 25 | Master Mode |
 | - DOUT | GPIO 22 | |
-| **Status Signal** | | -> to RP2354 |
-| - BT Active | GPIO 18 | High when BT Audio is playing |
+| **Status Signal** | | -> to RP2354A |
+| - BT Active | GPIO 18 | HIGH when BT Audio is actively streaming |
 | **UART 2 (Metadata & Control)**| | <-> with ESP32-S3 |
 | - TX2 (to S3 RX) | GPIO 17 | Sends Metadata (Title/Artist) |
-| - RX2 (from S3 TX)| GPIO 16 | Receives Play/Pause/Override Commands |
+| - RX2 (from S3 TX)| GPIO 16 | Receives Play/Pause/Vol Commands |
 | **UART 0 (Flashing)** | | <- from ESP32-S3 |
 | - RX0 / TX0 | GPIO 3 / 1 | Standard esptool serial |
 | - EN / IO0 | EN / IO0 | Controlled by S3 |
 
 ---
 
-### 3. RP2354A (DSP, Routing & Power Logic)
+## 3. RP2354A (Core 1 DSP, Audio Routing & Power Logic)
 
-**Roles:** I2S Input mixing/switching, I2S Output to Amps, Amp config (I2C), Fan PWM, Display Backlight PWM, LED 1-Wire Data.
+**Roles:** I2S Slave Input mixing, "Last Active Wins" routing, Core 1 Biquad DSP (5-band EQ & Subwoofer Low-Pass), Dual-Master PIO Output, Amp config (I2C), PWM (Fan, Display), WS2805 LED Data.
 
 | Component / Function | RP2354 Pin | Notes |
 | :--- | :--- | :--- |
 | **I2S Input 1 (HA)** | | <- from ESP32-S3 |
-| - BCLK | GP0 | |
-| - LRCK | GP1 | |
+| - BCLK | GP0 | PIO Slave Mode |
+| - LRCK | GP1 | PIO Slave Mode |
 | - DIN | GP2 | |
-| **I2S Input 2 (BT)** | | <- from ESP32-32D |
-| - BCLK | GP3 | |
-| - LRCK | GP4 | |
+| **I2S Input 2 (BT)** | | <- from ESP32-WROOM-32D |
+| - BCLK | GP3 | PIO Slave Mode |
+| - LRCK | GP4 | PIO Slave Mode |
 | - DIN | GP5 | |
-| **I2S Output (Dual Master PIO)** | | -> to MA12070P (Amp 1 & 2) |
-| - BCLK (Amp 1 & 2) | GP6 | Clocks are shared from a single PIO generator |
-| - LRCK (Amp 1 & 2) | GP7 | |
-| - DOUT 1 (Amp 1) | GP8 | Data outputs must be physically contiguous |
-| - DOUT 2 (Amp 2) | GP9 | for the PIO `out pins, 2` instruction |
+| **I2S Output (Dual Master PIO)** | | -> to MA12070P (Amp 1 & Amp 2) |
+| - BCLK (Amp 1 & 2) | GP6 | Shared PIO Clock Generator |
+| - LRCK (Amp 1 & 2) | GP7 | Shared PIO Clock Generator |
+| - DOUT 1 (Amp 1) | GP8 | Output for Front L/R (Stereo 5-Band EQ) |
+| - DOUT 2 (Amp 2) | GP9 | Output for Subwoofer (Mono summed + LPF) |
 | **Clock Requirements** | | |
-| - XIN / XOUT | Pin 20 / Pin 21 | Must use 12MHz Crystal with 12-22pF caps to GND |
-| **I2C Bus** | | -> Config for MA12070P (Amp 1 & 2) |
-| - SDA | GP12 | |
+| - XIN / XOUT | Pin 20 / 21 | 12MHz Crystal (Physical QFN80 pins, NOT GPIOs) |
+| **I2C Bus (Amp Config)** | | -> to MA12070P |
+| - SDA | GP12 | Amp 1 (0x20, Stereo), Amp 2 (0x21, PBTL) |
 | - SCL | GP13 | |
-| **S/PDIF Input (TOSLINK)** | | <- from DLR1160 (or similar) optical receiver |
-| - Data In | GP28 | Decoded via custom PIO State Machine (Zero-Click Routing Prio 2) |
-| **Amp Status (Fault)** | | <- from MA12070P (Amp 1 & 2) |
+| **S/PDIF Input (TOSLINK)** | | <- from DLR1160 |
+| - Data In | GP28 | Decoded via custom PIO State Machine |
+| **Amp Status (Fault)** | | <- from MA12070P |
 | - Fault 1 | GP14 | |
 | - Fault 2 | GP15 | |
-| **Amp Mute / Enable**| | -> to MA12070P (Amp 1 & 2) |
-| - Enable 1 | GP16 | |
-| - Enable 2 | GP17 | |
-| **Status Signal** | | <- from ESP32-32D |
+| **Amp Enable** | | -> to MA12070P |
+| - Enable 2 | GP17 | Subwoofer Enable |
+| - Enable 1 | GP20 | Front L/R Enable |
+| **Status Signal** | | <- from ESP32-WROOM-32D |
 | - BT Active | GP26 | |
 | **PWM Outputs** | | |
 | - Fan Control | GP18 | -> to Fan circuit |
