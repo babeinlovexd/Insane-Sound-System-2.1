@@ -1,26 +1,19 @@
-# 🛡️ Security Policy
+# Security Policy
 
-Die Sicherheit des **Insane Sound System V4** und der heimischen Netzwerke unserer Nutzer hat oberste Priorität. Da dieses Projekt WLAN, Bluetooth und OTA-Updates nutzt, nehmen wir potenzielle Schwachstellen sehr ernst.
+## Reporting a Vulnerability
 
-## Unterstützte Versionen
+**Please do not report security vulnerabilities through public GitHub issues.**
 
-Derzeit werden Sicherheitsupdates nur für die aktuellsten Major-Releases bereitgestellt:
+If you discover a potential security risk (e.g., regarding the OTA update process, the Proxy Flasher, or network security on the ESP32), please report it by:
 
-| Version | Unterstützt |
-| ------- | ------------------ |
-| V4.x.x  | ✅ Ja              |
-| V3.x.x  | ❌ Nein (Veraltet) |
-| < V3    | ❌ Nein            |
+1. Opening a **Draft Security Advisory** on GitHub (preferred).
+2. Or contacting the lead maintainers directly via the contact information provided in our GitHub profiles.
 
-## Eine Sicherheitslücke melden
+### Our Response Process
+- We will acknowledge your report within 48 hours.
+- We will provide a detailed response including a timeline for a fix within 7 days.
+- Once a fix is verified, we will coordinate a release and give you credit for the discovery (if desired).
 
-Bitte melde **sicherheitsrelevante Bugs oder Schwachstellen niemals öffentlich** über die GitHub Issues oder Discussions! Das gibt böswilligen Akteuren die Möglichkeit, die Lücke auszunutzen, bevor ein Patch verfügbar ist.
-
-Wenn du eine kritische Schwachstelle gefunden hast (z. B. Umgehung der OTA-Passwörter, WLAN-Exploits oder unbefugter Zugriff auf den ESP32-S3 / D1 Mini):
-
-1. Sende mir bitte direkt eine vertrauliche E-Mail an: christopher.dohmen@insane-screen-gamer.de
-2. Beschreibe die Lücke so detailliert wie möglich (welcher ESP ist betroffen, welche ESPHome-Version, wie lässt sich der Fehler reproduzieren).
-3. Ich werde den Eingang deiner Meldung innerhalb von 48 Stunden bestätigen.
-4. Wir arbeiten dann gemeinsam an einem Patch und veröffentlichen diesen, bevor die Lücke öffentlich dokumentiert wird.
-
-Vielen Dank, dass du hilfst, das Insane Sound System für alle sicher zu machen!
+## Ground Rules
+- Please provide a Proof of Concept (PoC) or clear steps to reproduce if possible.
+- Give us reasonable time to investigate and mitigate the issue before sharing any information publicly.
