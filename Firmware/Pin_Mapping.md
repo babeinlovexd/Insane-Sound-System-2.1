@@ -93,9 +93,11 @@ The mapping guarantees logical separation of buses, handles the advanced 2.1 aud
 | - SCL | GP13 | |
 | **S/PDIF Input (TOSLINK)** | | <- from DLR1160 |
 | - Data In | GP28 | Decoded via custom PIO State Machine |
-| **Amp Status (Fault)** | | <- from MA12070P |
+| **Amp Status (Fault / Clip)** | | <- from MA12070P |
 | - Fault 1 | GP14 | |
 | - Fault 2 | GP15 | |
+| - Clip 1 (Stereo) | GP22 | INPUT_PULLUP (Active LOW) |
+| - Clip 2 (Subwoofer) | GP23 | INPUT_PULLUP (Active LOW) |
 | **Amp Enable** | | -> to MA12070P |
 | - Enable 2 | GP17 | Subwoofer Enable |
 | - Enable 1 | GP20 | Front L/R Enable |

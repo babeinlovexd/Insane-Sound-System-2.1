@@ -982,6 +982,22 @@ uart:
     tx_pin: GPIO2
     rx_pin: GPIO1
     baud_rate: 115200
+    debug:
+      direction: RX
+      dummy_receiver: false
+      after:
+        delimiter: "\n"
+      sequence:
+        - lambda: |-
+            std::string line(bytes.begin(), bytes.end());
+            if (line.rfind("CLIP_AMP1:", 0) == 0) {
+                int status = atoi(line.substr(10).c_str());
+                id(amp1_clip_status).publish_state(status ? "Clips detected!" : "Clear");
+            }
+            if (line.rfind("CLIP_AMP2:", 0) == 0) {
+                int status = atoi(line.substr(10).c_str());
+                id(amp2_clip_status).publish_state(status ? "Clips detected!" : "Clear");
+            }
 
 # Text sensors to hold Bluetooth metadata and DSP Status
 text_sensor:
@@ -1053,6 +1069,16 @@ text_sensor:
       - name: "Amp Temp (UART)"
         id: temp_amp_uart
         unit_of_measurement: "°C"
+
+  - platform: template
+    name: "Amp 1 (Stereo) Clipping"
+    id: amp1_clip_status
+    icon: "mdi:waveform"
+
+  - platform: template
+    name: "Amp 2 (Subwoofer) Clipping"
+    id: amp2_clip_status
+    icon: "mdi:waveform"
 
 # ##############################################################################
 # EXTERNE PYTHON KOMPONENTEN
