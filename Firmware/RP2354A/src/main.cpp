@@ -134,20 +134,27 @@ bool dsp_active = false;
 // Fast bit interleaver: interleave Amp 1 bit and Amp 2 bit for the I2S dual master PIO.
 // Input format is 32-bit sample from Amp 1 and 32-bit sample from Amp 2.
 // Outputs two 32-bit words that will be fed sequentially to PIO TX FIFO.
+
+inline uint32_t spread_bits_16(uint16_t x) {
+    uint32_t res = x;
+    res = (res ^ (res << 8)) & 0x00ff00ff;
+    res = (res ^ (res << 4)) & 0x0f0f0f0f;
+    res = (res ^ (res << 2)) & 0x33333333;
+    res = (res ^ (res << 1)) & 0x55555555;
+    return res;
+}
+
 void interleave_32bit(uint32_t a1, uint32_t a2, uint32_t &out1, uint32_t &out2) {
-    // For RP2354A Cortex-M33, a loop or specialized bit-twiddling is needed.
-    // To process audio fast on Core 1 without inline asm, we just loop 32 times for 2 words.
-    // Or we just rely on standard duplicating if DSP isn't used to save CPU.
-    // But since Amp1 and Amp2 are different, we interleave:
-    out1 = 0; out2 = 0;
-    for (int i = 0; i < 16; i++) {
-        // First 16 bits -> out1
-        out1 |= ((a1 >> (31 - i)) & 1) << (31 - (i * 2));
-        out1 |= ((a2 >> (31 - i)) & 1) << (30 - (i * 2));
-        // Last 16 bits -> out2
-        out2 |= ((a1 >> (15 - i)) & 1) << (31 - (i * 2));
-        out2 |= ((a2 >> (15 - i)) & 1) << (30 - (i * 2));
-    }
+    // Magic number bit-twiddling avoids loops and saves millions of CPU cycles per second
+    uint16_t a1_hi = (a1 >> 16) & 0xFFFF;
+    uint16_t a2_hi = (a2 >> 16) & 0xFFFF;
+    uint16_t a1_lo = a1 & 0xFFFF;
+    uint16_t a2_lo = a2 & 0xFFFF;
+
+    // First 16 bits -> out1
+    out1 = (spread_bits_16(a1_hi) << 1) | spread_bits_16(a2_hi);
+    // Last 16 bits -> out2
+    out2 = (spread_bits_16(a1_lo) << 1) | spread_bits_16(a2_lo);
 }
 
 // DMA IRQ ONLY sets pointers and flags. Zero Math.
@@ -396,22 +403,11 @@ void setup() {
     uint8_t addr = amp_addresses[i];
     
     // Set Audio Format to I2S 24-Bit (Reg 0x25 = 0x00 for standard I2S 24-bit on MA12070P)
+    // PBTL is configured via hardware pins MSE0/MSE1, NOT via I2C Reg 0x25.
+    // Both amps must explicitly read a 24-bit stream to prevent heavy distortion.
     Wire.beginTransmission(addr);
     Wire.write(0x25); 
     Wire.write(0x00); // 00000000: I2S, 24-bit
-    Wire.endTransmission();
-
-    // Set Audio Routing/Mode
-    // According to reviewer, audio routing (PBTL) is usually handled in Register 0x25 (audio_in_mode)
-    Wire.beginTransmission(addr);
-    Wire.write(0x25);
-    if (addr == 0x21) {
-        // Amp 2 (Subwoofer) zwingend auf "PBTL"
-        Wire.write(0x01); // Assumed PBTL setting
-    } else {
-        // Amp 1 (Front L/R) im normalen Stereo-Modus (BTL)
-        Wire.write(0x00); // Standard I2S, 24-bit
-    }
     Wire.endTransmission();
 
     // Set Power Mode Profile (Reg 0x2D)
@@ -528,12 +524,16 @@ void loop() {
   static float tempAmp = 0.0;
   static float tempPsu = 0.0;
   
-  if (Serial1.available()) {
-    String cmd = Serial1.readStringUntil('\n');
-    cmd.trim(); 
-    
-    // Check for routing overrides
-    if (cmd == "OVERRIDE_START") haOverrideActive = true;
+  static String uart_buffer = "";
+  while (Serial1.available()) {
+    char c = Serial1.read();
+    if (c == '\n') {
+        String cmd = uart_buffer;
+        cmd.trim();
+        uart_buffer = "";
+
+        // Check for routing overrides
+        if (cmd == "OVERRIDE_START") haOverrideActive = true;
     else if (cmd == "OVERRIDE_STOP")  haOverrideActive = false;
     
     // Check for thermal telemetry from S3 (Format: "THERMAL:amb_temp:amp_temp:psu_temp")
@@ -653,11 +653,14 @@ void loop() {
             }
         }
     }
-    // Direct Biquad coefficients from S3 (Format: "BIQUAD:b0:b1:b2:a1:a2")
-    else if (cmd.startsWith("BIQUAD:")) {
-        sscanf(cmd.c_str(), "BIQUAD:%f:%f:%f:%f:%f", &sub_b0, &sub_b1, &sub_b2, &sub_a1, &sub_a2);
-        dsp_active = true;
-        Serial.println("Biquad coefficients updated from S3");
+        // Direct Biquad coefficients from S3 (Format: "BIQUAD:b0:b1:b2:a1:a2")
+        else if (cmd.startsWith("BIQUAD:")) {
+            sscanf(cmd.c_str(), "BIQUAD:%f:%f:%f:%f:%f", &sub_b0, &sub_b1, &sub_b2, &sub_a1, &sub_a2);
+            dsp_active = true;
+            Serial.println("Biquad coefficients updated from S3");
+        }
+    } else {
+        uart_buffer += c;
     }
   }
   

@@ -1,5 +1,5 @@
 <div align="center">
-  
+
 # 🔊 Insane Sound System 2.1
 ### The Ultimate Triple-Brain Open-Source DSP Audio Matrix
 
@@ -32,7 +32,7 @@
 Um Management, Konnektivität und High-End-Audioverarbeitung kompromisslos voneinander zu trennen, nutzt das Insane Sound System 2.1 eine dedizierte Drei-Prozessor-Architektur:
 
 ### 1. ESP32-S3 (The Director)
-**Das absolute Kontrollzentrum.** Er kommuniziert mit der Außenwelt und dirigiert als souveräner Master die anderen Chips. 
+**Das absolute Kontrollzentrum.** Er kommuniziert mit der Außenwelt und dirigiert als souveräner Master die anderen Chips.
 Als **Home Assistant Boss** stellt er via ESPHome alle Regler (EQ, Crossover, Volume) bereit und übersetzt sie in Echtzeit-UART-Befehle. Er übernimmt das **thermisches Management**, sammelt sämtliche Systemtemperaturen und berechnet daraus die perfekte PWM-Lüfterkurve. Alle Systeminfos pusht er gestochen scharf auf das **Widescreen LCD Display**, während er gleichzeitig die haptischen Eingaben am **Frontpanel** (über PCF8574T und Encoder) auswertet. Firmware-Updates verteilt er als intelligenter **Proxy-Flasher** Over-The-Air an seine Co-Prozessoren, bietet aber für den allerersten Setup-Prozess eine komfortable **native USB-Schnittstelle**.
 
 ### 2. ESP32-WROOM-32D (The Radio)
