@@ -43,6 +43,9 @@
 #define AMP1_EN    20 // Swapped with LED_DATA
 #define AMP2_EN    17
 
+#define AMP1_CLIP  22 // Stereo Clip Indicator (Pull-Up)
+#define AMP2_CLIP  23 // Subwoofer Clip Indicator (Pull-Up)
+
 // PWM Outputs
 #define FAN_PWM    18
 #define BL_PWM     19
@@ -380,6 +383,8 @@ void setup() {
   pinMode(AMP2_FAULT, INPUT);
   pinMode(AMP1_EN, OUTPUT);
   pinMode(AMP2_EN, OUTPUT);
+  pinMode(AMP1_CLIP, INPUT_PULLUP);
+  pinMode(AMP2_CLIP, INPUT_PULLUP);
   
   // Enable both amps
   digitalWrite(AMP1_EN, HIGH);
@@ -738,6 +743,15 @@ void loop() {
   // required to support I2S Slave mode, and therefore does not require polling here.
 
   // ---------------------------------------------------------
+  // High-Speed Clipping Latch (Polled continuously)
+  // ---------------------------------------------------------
+  static bool amp1_clipped = false;
+  static bool amp2_clipped = false;
+
+  if (digitalRead(AMP1_CLIP) == LOW) amp1_clipped = true;
+  if (digitalRead(AMP2_CLIP) == LOW) amp2_clipped = true;
+
+  // ---------------------------------------------------------
   // Background Tasks (Faults & Thermal Management)
   // ---------------------------------------------------------
   static unsigned long lastBackgroundTask = 0;
@@ -795,8 +809,16 @@ void loop() {
     Serial1.printf("TEMP_AMPS:%.1f\n", maxAmpTemp);
     Serial1.printf("SYS_STAT:%s\n", sysStatus.c_str());
 
+    // Send Clipping Status
+    Serial1.printf("CLIP_AMP1:%d\n", amp1_clipped ? 1 : 0);
+    Serial1.printf("CLIP_AMP2:%d\n", amp2_clipped ? 1 : 0);
+
     bool fault = (digitalRead(AMP1_FAULT) == LOW || digitalRead(AMP2_FAULT) == LOW);
     Serial1.printf("FAULT:%d\n", fault ? 1 : 0);
+
+    // Reset clipping latch for the next interval
+    amp1_clipped = false;
+    amp2_clipped = false;
 
     lastBackgroundTask = millis();
   }
