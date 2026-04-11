@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import uart, text_sensor, sensor, binary_sensor, globals
+from esphome.components import uart, text_sensor, sensor, binary_sensor
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ["uart"]
@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_SYS_STAT): cv.use_id(text_sensor.TextSensor),
         cv.Optional(CONF_BT_CONN): cv.use_id(binary_sensor.BinarySensor),
         cv.Optional(CONF_BT_VOL): cv.use_id(sensor.Sensor),
-        cv.Optional(CONF_IS_FLASHING): cv.use_id(globals.GlobalsVariable),
+        cv.Optional(CONF_IS_FLASHING): cv.string,
     }
 ).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
@@ -57,8 +57,8 @@ async def to_code(config):
 
     is_flashing = cg.nullptr
     if CONF_IS_FLASHING in config:
-        glob = await cg.get_variable(config[CONF_IS_FLASHING])
-        is_flashing = cg.RawExpression(f"&{glob.id}")
+        glob_id = config[CONF_IS_FLASHING]
+        is_flashing = cg.RawExpression(f"&{glob_id}")
 
     parent = await cg.get_variable(config[uart.CONF_UART_ID])
 

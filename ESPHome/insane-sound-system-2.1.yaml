@@ -91,8 +91,6 @@ esphome:
   project:
     name: "babeinlovexd.insane_sound_system_2.1"
     version: "0.1.0"
-  includes:
-    - "esphome/components/network/util.h"
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -710,16 +708,16 @@ script:
   - id: update_status_leds
     mode: restart
     then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - switch.turn_on: led_green
+          else:
+            - switch.turn_off: led_green
       - lambda: |-
           std::string status = id(system_status).state;
           std::string source = id(dsp_active_source).state;
-
-          // --- LED GRÜN: System & WLAN ---
-          if (esphome::network::is_connected()) {
-            id(led_green).turn_on();
-          } else {
-            id(led_green).turn_off();
-          }
 
           // --- LED ROT: Fehler & Warnungen ---
           if (status != "ok" && status != "OK") {
