@@ -1009,6 +1009,14 @@ uart:
                 int status = atoi(line.substr(10).c_str());
                 id(amp2_clip_status).publish_state(status ? "Clips detected!" : "Clear");
             }
+            if (line.rfind("TEMP_RP:", 0) == 0) {
+                float temp = atof(line.substr(8).c_str());
+                id(temp_rp_uart).publish_state(temp);
+            }
+            if (line.rfind("TEMP_AMPS:", 0) == 0) {
+                float temp = atof(line.substr(10).c_str());
+                id(temp_amp_uart).publish_state(temp);
+            }
 
 # Text sensors to hold Bluetooth metadata and DSP Status
 text_sensor:
@@ -1068,18 +1076,14 @@ text_sensor:
     on_value:
       - script.execute: update_status_leds
 
-  - platform: custom
-    lambda: |-
-      auto my_custom_sensor = new UartReadLineSensor(id(uart_rp2354));
-      App.register_component(my_custom_sensor);
-      return {my_custom_sensor->temp_rp_sensor, my_custom_sensor->temp_amp_sensor};
-    sensors:
-      - name: "RP2354 Temp (UART)"
-        id: temp_rp_uart
-        unit_of_measurement: "°C"
-      - name: "Amp Temp (UART)"
-        id: temp_amp_uart
-        unit_of_measurement: "°C"
+  - platform: template
+    name: "RP2354 Temp (UART)"
+    id: temp_rp_uart
+    unit_of_measurement: "°C"
+  - platform: template
+    name: "Amp Temp (UART)"
+    id: temp_amp_uart
+    unit_of_measurement: "°C"
 
   - platform: template
     name: "Amp 1 (Stereo) Clipping"
