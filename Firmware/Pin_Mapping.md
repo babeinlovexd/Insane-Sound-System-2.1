@@ -21,8 +21,8 @@ The mapping guarantees logical separation of buses, handles the advanced 2.1 aud
 | - CS | GPIO 10 | |
 | - DC | GPIO 9 | |
 | - RES | GPIO 40 | Changed from 46 (Strapping Pin) |
-| **I2C Bus** | | -> to PCF8574T (UI) & LM75AD (Temp) |
-| - SDA | GPIO 8 | LM75AD Sensors: 0x48 (Env), 0x49 (Amp), 0x4A (PSU) |
+| **I2C Bus** | | -> to PCF8574T (UI) & TMP102 (Temp) |
+| - SDA | GPIO 8 | TMP102 Sensors: 0x48 (Env), 0x49 (Amp), 0x4A (PSU) |
 | - SCL | GPIO 18 | PCF8574T: 0x20 (Buttons/LEDs) |
 | **Rotary Encoder** | | Direct inputs |
 | - CLK | GPIO 15 | |
