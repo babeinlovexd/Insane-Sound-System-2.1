@@ -73,7 +73,7 @@ void setup() {
   i2s_config_t i2s_config = {
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
       .sample_rate = 44100,
-      .bits_per_sample = (i2s_bits_per_sample_t)16,
+      .bits_per_sample = (i2s_bits_per_sample_t)32, // Force 64 BCLKs per frame (32 bits per channel) to prevent RP2354 PIO (set x, 63) freeze
       .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
       .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_STAND_I2S),
       .intr_alloc_flags = 0, // default interrupt priority
