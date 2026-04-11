@@ -58,7 +58,7 @@ async def to_code(config):
     is_flashing = cg.nullptr
     if CONF_IS_FLASHING in config:
         glob_id = config[CONF_IS_FLASHING]
-        is_flashing = cg.RawExpression(f"&{glob_id}")
+        is_flashing = cg.RawExpression(f"{glob_id}")
 
     parent = await cg.get_variable(config[uart.CONF_UART_ID])
 
