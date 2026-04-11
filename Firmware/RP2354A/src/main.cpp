@@ -490,7 +490,7 @@ void setup() {
   uint16_t wlan_prog[7] = {
       (uint16_t)(0x2080 | I2S_IN1_LRCK), // Wait LRCK High
       (uint16_t)(0x2000 | I2S_IN1_LRCK), // Wait LRCK Low
-      0xe03f,                            // set x, 63
+      0xe01f,                            // set x, 31 (Read 32 BCLKs for 16-bit Stereo I2S frame)
       (uint16_t)(0x2000 | I2S_IN1_BCLK), // Wait BCLK Low
       (uint16_t)(0x2080 | I2S_IN1_BCLK), // Wait BCLK High
       0x4001,                            // in pins, 1
@@ -501,7 +501,7 @@ void setup() {
   uint16_t bt_prog[7] = {
       (uint16_t)(0x2080 | I2S_IN2_LRCK),
       (uint16_t)(0x2000 | I2S_IN2_LRCK),
-      0xe03f,
+      0xe01f,                            // set x, 31
       (uint16_t)(0x2000 | I2S_IN2_BCLK),
       (uint16_t)(0x2080 | I2S_IN2_BCLK),
       0x4001,
