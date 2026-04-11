@@ -838,7 +838,7 @@ display:
 
           int fan_bars = (int)(id(fan_speed).state / 25.0);
           for(int i=0; i<fan_bars; i++) {
-            it.filled_rect(255 + (i*6), 8 - (i*2), 4, 4 + (i*2), id(my_white));
+            it.filled_rectangle(255 + (i*6), 8 - (i*2), 4, 4 + (i*2), id(my_white));
           }
 
           // --- MITTLERER BEREICH (Y: 20 bis 55) ---
@@ -848,8 +848,8 @@ display:
 
           } else if (id(ui_mode) == 1) {
              // LAUTSTÄRKE Balken
-             it.filled_rect(42, 35, (id(encoder_vol).state * 2), 15, id(my_blue)); // max 200px
-             it.rect(42, 35, 200, 15, id(my_white)); // Rahmen
+             it.filled_rectangle(42, 35, (id(encoder_vol).state * 2), 15, id(my_blue)); // max 200px
+             it.rectangle(42, 35, 200, 15, id(my_white)); // Rahmen
 
           } else if (id(ui_mode) == 2) {
              // ACTION SYMBOL (z.B. "||", ">", "<<", ">>")
