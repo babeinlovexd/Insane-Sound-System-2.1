@@ -9,7 +9,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
   esphome::text_sensor::TextSensor *artist_sensor_;
   esphome::text_sensor::TextSensor *status_sensor_;
   esphome::sensor::Sensor *temp_sensor_;
-  bool *is_flashing_;
+  esphome::globals::GlobalsComponent<bool> *is_flashing_;
 
   static const int max_line_length = 80;
   char buffer[max_line_length];
@@ -36,7 +36,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
                    esphome::text_sensor::TextSensor *sys_stat,
                    esphome::binary_sensor::BinarySensor *bt_conn,
                    esphome::sensor::Sensor *bt_vol,
-                   bool *is_flashing)
+                   esphome::globals::GlobalsComponent<bool> *is_flashing)
       : UARTDevice(parent), track_sensor_(track), artist_sensor_(artist), album_sensor_(album), status_sensor_(status), temp_sensor_(temp), fan_sensor_(fan), fault_sensor_(fault), stream_status_(stream_status), sys_stat_sensor_(sys_stat), bt_conn_sensor_(bt_conn), bt_vol_sensor_(bt_vol), is_flashing_(is_flashing) {}
 
   void setup() override {
@@ -46,7 +46,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
   void loop() override {
     // If we are actively proxy flashing the target chip, do not consume bytes from its UART.
     // This ensures the `stream_server` receives the full binary payload untouched.
-    if (is_flashing_ != nullptr && *is_flashing_) {
+    if (is_flashing_ != nullptr && is_flashing_->value()) {
         return;
     }
 
@@ -85,12 +85,8 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     // Format 4: RP2354 Fan -> "FAN:50"
     if (s_line.find("FAN:") == 0) {
       if (fan_sensor_) {
-        try {
-          float fan_val = std::stof(s_line.substr(4));
-          fan_sensor_->publish_state(fan_val);
-        } catch (...) {
-          // ignore parsing errors
-        }
+        float fan_val = atof(s_line.substr(4).c_str());
+        fan_sensor_->publish_state(fan_val);
       }
       return;
     }
@@ -98,25 +94,26 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     // Format 5: RP2354 Fault -> "FAULT:1"
     if (s_line.find("FAULT:") == 0) {
       if (fault_sensor_) {
-        try {
-          int fault_val = std::stoi(s_line.substr(6));
-          fault_sensor_->publish_state(fault_val > 0);
-        } catch (...) {
-          // ignore parsing errors
-        }
+        int fault_val = atoi(s_line.substr(6).c_str());
+        fault_sensor_->publish_state(fault_val > 0);
       }
       return;
     }
 
-    // Format 3: RP2354 Temp -> "TEMP:42.5"
+    // Format 3: RP2354 Temp -> "TEMP:42.5" or "TEMP_RP:42.5"
     if (s_line.find("TEMP:") == 0) {
       if (temp_sensor_) {
-        try {
-          float temp_val = std::stof(s_line.substr(5));
-          temp_sensor_->publish_state(temp_val);
-        } catch (...) {
-          // ignore parsing errors
-        }
+        float temp_val = atof(s_line.substr(5).c_str());
+        temp_sensor_->publish_state(temp_val);
+      }
+      return;
+    }
+
+    // Support modern TEMP_RP format as well
+    if (s_line.find("TEMP_RP:") == 0) {
+      if (temp_sensor_) {
+        float temp_val = atof(s_line.substr(8).c_str());
+        temp_sensor_->publish_state(temp_val);
       }
       return;
     }
@@ -142,10 +139,8 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     // Parse BT_VOL to sync the volume slider with phone changes
     if (s_line.find("BT_VOL:") == 0) {
       if (bt_vol_sensor_) {
-        try {
-          float vol = std::stof(s_line.substr(7));
-          bt_vol_sensor_->publish_state(vol);
-        } catch (...) {}
+        float vol = atof(s_line.substr(7).c_str());
+        bt_vol_sensor_->publish_state(vol);
       }
       return;
     }
@@ -153,10 +148,8 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     // Parse BT_CONN to track connection status
     if (s_line.find("BT_CONN:") == 0) {
       if (bt_conn_sensor_) {
-        try {
-          int conn = std::stoi(s_line.substr(8));
-          bt_conn_sensor_->publish_state(conn > 0);
-        } catch (...) {}
+        int conn = atoi(s_line.substr(8).c_str());
+        bt_conn_sensor_->publish_state(conn > 0);
       }
       return;
     }
