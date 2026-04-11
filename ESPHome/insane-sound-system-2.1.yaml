@@ -269,6 +269,17 @@ sensor:
     id: fan_speed
     unit_of_measurement: "%"
 
+  # UART parsed specific temperatures
+  - platform: template
+    name: "RP2354 Temp (UART)"
+    id: temp_rp_uart
+    unit_of_measurement: "°C"
+
+  - platform: template
+    name: "Amp Temp (UART)"
+    id: temp_amp_uart
+    unit_of_measurement: "°C"
+
   # Helper template for the maximum temperature
   - platform: template
     name: "Max Temperature"
@@ -1075,15 +1086,6 @@ text_sensor:
     name: "Insane System Status"
     on_value:
       - script.execute: update_status_leds
-
-  - platform: template
-    name: "RP2354 Temp (UART)"
-    id: temp_rp_uart
-    unit_of_measurement: "°C"
-  - platform: template
-    name: "Amp Temp (UART)"
-    id: temp_amp_uart
-    unit_of_measurement: "°C"
 
   - platform: template
     name: "Amp 1 (Stereo) Clipping"
