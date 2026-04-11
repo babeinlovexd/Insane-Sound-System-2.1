@@ -427,7 +427,7 @@ binary_sensor:
     pin:
       pcf8574: pcf_ui
       number: 0
-      mode: INPUT_PULLUP
+      mode: INPUT
       inverted: true
     on_press:
       - uart.write:
@@ -443,7 +443,7 @@ binary_sensor:
     pin:
       pcf8574: pcf_ui
       number: 1
-      mode: INPUT_PULLUP
+      mode: INPUT
       inverted: true
     on_press:
       - lambda: |-
@@ -464,7 +464,7 @@ binary_sensor:
     pin:
       pcf8574: pcf_ui
       number: 2
-      mode: INPUT_PULLUP
+      mode: INPUT
       inverted: true
     on_press:
       - uart.write:
@@ -798,12 +798,18 @@ script:
 
 # ST7789 Display
 display:
-  - platform: st7789v
+  - platform: mipi_spi
     id: main_display
     cs_pin: GPIO10
     dc_pin: GPIO9
     reset_pin: GPIO40
-    rotation: 90 # Wichtig für 284x76 Querformat
+    model: ST7789V
+    rotation: 90
+    dimensions:
+      width: 284
+      height: 80
+      offset_width: 18
+      offset_height: 82
     pages:
       - id: page1
         lambda: |-
