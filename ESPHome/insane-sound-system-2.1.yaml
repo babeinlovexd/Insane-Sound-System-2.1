@@ -236,21 +236,21 @@ sensor:
     name: "System Laufzeit"
 
   # Environmental Temp
-  - platform: lm75
+  - platform: tmp102
     name: "ESP Ambient Temperature"
     id: temp_env
     address: 0x48
     update_interval: 10s
 
   # Amplifier Temp
-  - platform: lm75
+  - platform: tmp102
     name: "MA12070P Temperature"
     id: temp_amp
     address: 0x49
     update_interval: 10s
 
   # Power Supply Temp
-  - platform: lm75
+  - platform: tmp102
     name: "TPS5430 Temperature"
     id: temp_psu
     address: 0x4A
@@ -317,7 +317,7 @@ interval:
   - interval: 10s
     then:
       - lambda: |-
-          // Broadcast LM75 Thermal data to RP2354 over UART2
+          // Broadcast TMP102 Thermal data to RP2354 over UART2
           // Format: THERMAL:amb_temp:amp_temp:psu_temp
           float amb = id(temp_env).state;
           float amp = id(temp_amp).state;
@@ -474,6 +474,54 @@ binary_sensor:
           service: media_player.media_next_track
           data:
             entity_id: ${ha_player_id}
+
+  # Rotary Encoder (Direct inputs)
+  - platform: gpio
+    name: "Encoder Button"
+    pin:
+      number: GPIO17
+      mode: INPUT_PULLUP
+      inverted: true
+    id: encoder_btn
+    on_press:
+      - script.execute: wake_display
+      - globals.set:
+          id: ui_mode
+          value: '2'
+      - if:
+          condition:
+            lambda: 'return id(is_muted);'
+          then:
+            - globals.set:
+                id: is_muted
+                value: 'false'
+            - globals.set:
+                id: current_action_symbol
+                value: '">"'
+            - uart.write:
+                id: uart_rp2354
+                data: "MUTE:0\n"
+            - uart.write:
+                id: uart_metadata
+                data: "PLAY\n"
+          else:
+            - globals.set:
+                id: is_muted
+                value: 'true'
+            - globals.set:
+                id: current_action_symbol
+                value: '"||"'
+            - uart.write:
+                id: uart_rp2354
+                data: "MUTE:1\n"
+            - uart.write:
+                id: uart_metadata
+                data: "PAUSE\n"
+      - homeassistant.service:
+          service: media_player.media_play_pause
+          data:
+            entity_id: ${ha_player_id}
+      - script.execute: timer_action
 
 number:
   - platform: template
@@ -652,54 +700,6 @@ number:
             char buf[30];
             sprintf(buf, "EQ_BAND:5:%.0f\n", x);
             id(uart_rp2354).write_str(buf);
-
-  # Rotary Encoder (Direct inputs)
-  - platform: gpio
-    name: "Encoder Button"
-    pin:
-      number: GPIO17
-      mode: INPUT_PULLUP
-      inverted: true
-    id: encoder_btn
-    on_press:
-      - script.execute: wake_display
-      - globals.set:
-          id: ui_mode
-          value: '2'
-      - if:
-          condition:
-            lambda: 'return id(is_muted);'
-          then:
-            - globals.set:
-                id: is_muted
-                value: 'false'
-            - globals.set:
-                id: current_action_symbol
-                value: '">"'
-            - uart.write:
-                id: uart_rp2354
-                data: "MUTE:0\n"
-            - uart.write:
-                id: uart_metadata
-                data: "PLAY\n"
-          else:
-            - globals.set:
-                id: is_muted
-                value: 'true'
-            - globals.set:
-                id: current_action_symbol
-                value: '"||"'
-            - uart.write:
-                id: uart_rp2354
-                data: "MUTE:1\n"
-            - uart.write:
-                id: uart_metadata
-                data: "PAUSE\n"
-      - homeassistant.service:
-          service: media_player.media_play_pause
-          data:
-            entity_id: ${ha_player_id}
-      - script.execute: timer_action
 
 # ##############################################################################
 # DISPLAY (ST7789) & UI GLOBALS
