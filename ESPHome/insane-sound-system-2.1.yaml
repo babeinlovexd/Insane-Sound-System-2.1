@@ -86,7 +86,7 @@ substitutions:
 # SYSTEM & WLAN
 # ##############################################################################
 esphome:
-  name: insane-sound-system-2.1
+  name: insane-sound-system-2-1
   friendly_name: "Insane Sound System 2.1 (Master)"
   project:
     name: "babeinlovexd.insane_sound_system_2.1"
@@ -913,27 +913,34 @@ media_player:
 # BELEUCHTUNG (WS2805 über UART)
 # ##############################################################################
 
-light:
+output:
   - platform: template
+    id: fake_output
+    type: float
+    write_action:
+      - lambda: 'return;'
+
+light:
+  - platform: rgbww
     name: "Insane LEDs"
     id: status_led
-    type: RGBWW
+    red: fake_output
+    green: fake_output
+    blue: fake_output
+    cold_white: fake_output
+    warm_white: fake_output
     color_interlock: true
-    turn_on_action:
+    on_state:
       - lambda: |-
-          // Variables red, green, blue, cold_white, warm_white are passed in by ESPHome.
+          float r, g, b, w, cw;
+          id(status_led).current_values_as_rgbww(&r, &g, &b, &cw, &w);
           char buf[64];
           sprintf(buf, "LED:%u:%u:%u:%u:%u\n",
-            (uint8_t)(red * 255),
-            (uint8_t)(green * 255),
-            (uint8_t)(blue * 255),
-            (uint8_t)(cold_white * 255),
-            (uint8_t)(warm_white * 255));
-          id(uart_rp2354).write_str(buf);
-    turn_off_action:
-      - lambda: |-
-          char buf[64];
-          sprintf(buf, "LED:0:0:0:0:0\n");
+            (uint8_t)(r * 255),
+            (uint8_t)(g * 255),
+            (uint8_t)(b * 255),
+            (uint8_t)(cw * 255),
+            (uint8_t)(w * 255));
           id(uart_rp2354).write_str(buf);
 
 # ##############################################################################
