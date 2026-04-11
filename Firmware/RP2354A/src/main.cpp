@@ -178,9 +178,12 @@ void interleave_32bit(uint32_t a1, uint32_t a2, uint32_t &out1, uint32_t &out2) 
     uint16_t a2_lo = a2 & 0xFFFF;
 
     // First 16 bits -> out1
-    out1 = (spread_bits_16(a1_hi) << 1) | spread_bits_16(a2_hi);
+    // The PIO `out pins, 2` places the LSB on the base pin.
+    // DOUT1 (Amp 1 / Front-Stereo) is the base pin, so a1 must be the LSB.
+    // DOUT2 (Amp 2 / Subwoofer) is base+1, so a2 must be shifted left.
+    out1 = (spread_bits_16(a2_hi) << 1) | spread_bits_16(a1_hi);
     // Last 16 bits -> out2
-    out2 = (spread_bits_16(a1_lo) << 1) | spread_bits_16(a2_lo);
+    out2 = (spread_bits_16(a2_lo) << 1) | spread_bits_16(a1_lo);
 }
 
 // DMA IRQ ONLY sets pointers and flags. Zero Math.
@@ -622,10 +625,10 @@ void loop() {
     // Check for LED color from UI (Format: "LED: r:g:b:w1:w2" or "LED:r:g:b:w1:w2")
     // The explicit user request format: z. B. LED: 255:0:0:100:100
     else if (cmd.startsWith("LED:")) {
-        int r, g, b, w1, w2;
+        unsigned int r, g, b, w1, w2;
         // Check for both with and without space
-        if (sscanf(cmd.c_str(), "LED: %d:%d:%d:%d:%d", &r, &g, &b, &w1, &w2) == 5 ||
-            sscanf(cmd.c_str(), "LED:%d:%d:%d:%d:%d", &r, &g, &b, &w1, &w2) == 5) {
+        if (sscanf(cmd.c_str(), "LED: %u:%u:%u:%u:%u", &r, &g, &b, &w1, &w2) == 5 ||
+            sscanf(cmd.c_str(), "LED:%u:%u:%u:%u:%u", &r, &g, &b, &w1, &w2) == 5) {
             if (leds) {
                 leds->show(r, g, b, w1, w2);
             }

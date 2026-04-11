@@ -886,6 +886,7 @@ speaker:
     channel: stereo
     use_apll: true
     i2s_comm_fmt: stand_msb
+    bits_per_sample: 32
 
   - platform: mixer
     id: insane_mixer
