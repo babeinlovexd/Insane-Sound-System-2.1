@@ -101,6 +101,29 @@ float sub_b0 = 1.0, sub_b1 = 0.0, sub_b2 = 0.0, sub_a1 = 0.0, sub_a2 = 0.0;
 float sub_z1 = 0.0, sub_z2 = 0.0; // Mono subwoofer
 float sub_gain = 1.0;
 
+// Hardware Clipping Protection (Digital Attenuation Multipliers)
+volatile float amp1_clip_attenuation = 1.0;
+volatile float amp2_clip_attenuation = 1.0;
+volatile bool amp1_clipped = false;
+volatile bool amp2_clipped = false;
+
+void amp1_clip_isr() {
+    // Instantaneous digital volume throttling for Amp 1 (Front L/R)
+    // Reduce volume by ~10% per clipping event to save the voice coils
+    if (amp1_clip_attenuation > 0.1) {
+        amp1_clip_attenuation *= 0.9;
+    }
+    amp1_clipped = true;
+}
+
+void amp2_clip_isr() {
+    // Instantaneous digital volume throttling for Amp 2 (Subwoofer)
+    if (amp2_clip_attenuation > 0.1) {
+        amp2_clip_attenuation *= 0.9;
+    }
+    amp2_clipped = true;
+}
+
 // 5-Band EQ (Peaking Biquads) for Amp 1 (Front L/R)
 struct Biquad {
     float b0, b1, b2, a1, a2;
@@ -222,6 +245,10 @@ void loop1() {
                     out_f_r_a1 = temp_r;
                 }
 
+                // Apply Amp 1 hardware clipping attenuation to protect voice coils
+                out_f_l_a1 *= amp1_clip_attenuation;
+                out_f_r_a1 *= amp1_clip_attenuation;
+
                 // Low-Pass Filter for Amp 2 (Subwoofer) - Mono summed
                 // 1. Mix Front-Stereo-Signal to Mono
                 float in_mono = ((float)in_val_l + (float)in_val_r) * 0.5f;
@@ -231,8 +258,8 @@ void loop1() {
                 sub_z1 = in_mono * sub_b1 + sub_z2 - sub_a1 * out_f_mono_a2;
                 sub_z2 = in_mono * sub_b2 - sub_a2 * out_f_mono_a2;
 
-                // Apply Subwoofer Gain
-                out_f_mono_a2 *= sub_gain;
+                // Apply Subwoofer Gain and Hardware Clipping Attenuation
+                out_f_mono_a2 *= (sub_gain * amp2_clip_attenuation);
 
                 // Cast back to 32-bit integers
                 uint32_t amp1_l = (uint32_t)((int32_t)out_f_l_a1);
@@ -386,6 +413,10 @@ void setup() {
   pinMode(AMP1_CLIP, INPUT_PULLUP);
   pinMode(AMP2_CLIP, INPUT_PULLUP);
   
+  // Attach instantaneous hardware interrupts for speaker protection
+  attachInterrupt(digitalPinToInterrupt(AMP1_CLIP), amp1_clip_isr, FALLING);
+  attachInterrupt(digitalPinToInterrupt(AMP2_CLIP), amp2_clip_isr, FALLING);
+
   // Enable both amps
   digitalWrite(AMP1_EN, HIGH);
   digitalWrite(AMP2_EN, HIGH);
@@ -743,15 +774,6 @@ void loop() {
   // required to support I2S Slave mode, and therefore does not require polling here.
 
   // ---------------------------------------------------------
-  // High-Speed Clipping Latch (Polled continuously)
-  // ---------------------------------------------------------
-  static bool amp1_clipped = false;
-  static bool amp2_clipped = false;
-
-  if (digitalRead(AMP1_CLIP) == LOW) amp1_clipped = true;
-  if (digitalRead(AMP2_CLIP) == LOW) amp2_clipped = true;
-
-  // ---------------------------------------------------------
   // Background Tasks (Faults & Thermal Management)
   // ---------------------------------------------------------
   static unsigned long lastBackgroundTask = 0;
@@ -819,6 +841,16 @@ void loop() {
     // Reset clipping latch for the next interval
     amp1_clipped = false;
     amp2_clipped = false;
+
+    // Slowly recover digital volume after clipping (Auto-Release)
+    if (amp1_clip_attenuation < 1.0) {
+        amp1_clip_attenuation += 0.05; // Recover slowly
+        if (amp1_clip_attenuation > 1.0) amp1_clip_attenuation = 1.0;
+    }
+    if (amp2_clip_attenuation < 1.0) {
+        amp2_clip_attenuation += 0.05;
+        if (amp2_clip_attenuation > 1.0) amp2_clip_attenuation = 1.0;
+    }
 
     lastBackgroundTask = millis();
   }
