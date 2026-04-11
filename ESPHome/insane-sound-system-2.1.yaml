@@ -89,7 +89,7 @@ esphome:
   name: insane-sound-system-2-1
   friendly_name: "Insane Sound System 2.1 (Master)"
   project:
-    name: "babeinlovexd.insane_sound_system_2.1"
+    name: "babeinlovexd.insane_sound_system_2-1"
     version: "0.1.0"
 
 esp32:
@@ -408,7 +408,7 @@ binary_sensor:
   - platform: template
     name: "Bluetooth Connected"
     id: bt_connected
-    on_value:
+    on_state:
       - if:
           condition:
             lambda: 'return x;'
