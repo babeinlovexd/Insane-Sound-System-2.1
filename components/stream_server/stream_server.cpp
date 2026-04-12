@@ -118,7 +118,9 @@ void StreamServerComponent::read() {
 
     size_t len = 0;
     int available;
-    while ((available = this->stream_->available()) > 0) {
+    // Limit to prevent watchdog timeout (process max 1024 bytes per loop)
+    int max_loops = 16;
+    while ((available = this->stream_->available()) > 0 && max_loops-- > 0) {
         size_t free = this->buf_size_ - (this->buf_head_ - this->buf_tail_);
         if (free == 0) {
             // Only overwrite if nothing has been added yet, otherwise give flush() a chance to empty the buffer first.
@@ -180,7 +182,8 @@ void StreamServerComponent::write() {
         if (client.disconnected)
             continue;
 
-        while ((read = client.socket->read(&buf, sizeof(buf))) > 0)
+        int max_writes = 16; // Prevent watchdog
+        while ((read = client.socket->read(&buf, sizeof(buf))) > 0 && max_writes-- > 0)
             this->stream_->write_array(buf, read);
 
         if (read == 0 || errno == ECONNRESET) {

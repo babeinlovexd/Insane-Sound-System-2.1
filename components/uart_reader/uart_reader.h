@@ -50,7 +50,10 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
         return;
     }
 
-    while (available()) {
+    // Process a maximum of 256 bytes per loop to avoid watchdog timeouts
+    // if the UART is flooded with continuous data without yields.
+    int max_reads = 256;
+    while (available() && max_reads-- > 0) {
       char c = read();
       if (c == '\n' || c == '\r') {
         buffer[head] = '\0';
