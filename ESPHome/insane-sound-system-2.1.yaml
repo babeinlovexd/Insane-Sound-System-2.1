@@ -419,14 +419,6 @@ binary_sensor:
   - platform: template
     name: "Bluetooth Connected"
     id: bt_connected
-    on_state:
-      - if:
-          condition:
-            lambda: 'return x;'
-          then:
-            - switch.turn_on: led_blue
-          else:
-            - switch.turn_off: led_blue
 
   # RP2354 Amp Fault parsed via UART
   - platform: template
