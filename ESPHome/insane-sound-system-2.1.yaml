@@ -828,7 +828,13 @@ display:
           // 2. Heißester Spot & Lüfter-Balken (Rechts)
           it.printf(250, 0, id(font_small), TextAlign::TOP_RIGHT, "%.1f°C", id(max_temp).state);
 
-          int fan_bars = (int)(id(fan_speed).state / 25.0);
+          float current_fan = id(fan_speed).state;
+          if (isnan(current_fan)) current_fan = 0.0;
+
+          int fan_bars = (int)(current_fan / 25.0);
+          if (fan_bars < 0) fan_bars = 0;
+          if (fan_bars > 4) fan_bars = 4;
+
           for(int i=0; i<fan_bars; i++) {
             it.filled_rectangle(255 + (i*6), 8 - (i*2), 4, 4 + (i*2), id(my_white));
           }
@@ -840,7 +846,9 @@ display:
 
           } else if (id(ui_mode) == 1) {
              // LAUTSTÄRKE Balken
-             it.filled_rectangle(42, 35, (id(encoder_vol).state * 2), 15, id(my_blue)); // max 200px
+             float vol = id(encoder_vol).state;
+             if (isnan(vol)) vol = 0.0;
+             it.filled_rectangle(42, 35, ((int)vol * 2), 15, id(my_blue)); // max 200px
              it.rectangle(42, 35, 200, 15, id(my_white)); // Rahmen
 
           } else if (id(ui_mode) == 2) {
