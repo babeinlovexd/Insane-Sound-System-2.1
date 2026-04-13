@@ -104,6 +104,9 @@ class InsaneFlasher(ctk.CTk):
         self.zeroconf = Zeroconf()
         self.is_fetching = False
 
+        # Keep-Alive Session für die API-Requests (Vermeidet Socket-Erschöpfung auf dem ESP)
+        self.session = requests.Session()
+
         self.online_version = None
         self.last_update_check = 0
 
@@ -296,6 +299,39 @@ class InsaneFlasher(ctk.CTk):
         self.log_box.see("end")
         self.log_box.configure(state="disabled")
 
+    def start_log_stream(self, ip):
+        self.log_running = False # Stoppe alten Thread falls existent
+        if self.log_thread and self.log_thread.is_alive():
+            self.log_thread.join(timeout=1)
+
+        self.log_box.configure(state="normal")
+        self.log_box.delete("0.0", "end")
+        self.log_box.insert("0.0", f"--- Verbinde mit Live-Log von {ip} ---\n")
+        self.log_box.configure(state="disabled")
+
+        self.log_running = True
+        self.log_thread = threading.Thread(target=self._log_stream_task, args=(ip,), daemon=True)
+        self.log_thread.start()
+
+    def _log_stream_task(self, ip):
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*[mK]')
+        url = f"http://{ip}/events"
+        try:
+            with self.session.get(url, stream=True, timeout=5) as r:
+                for line in r.iter_lines(decode_unicode=True):
+                    if not self.log_running:
+                        break
+                    if line:
+                        if line.startswith("event: log"):
+                            continue
+                        if line.startswith("data: "):
+                            raw_log = line[6:]
+                            clean_log = ansi_escape.sub('', raw_log)
+                            self.after(0, self.log, clean_log)
+        except Exception as e:
+            if self.log_running:
+                self.after(0, self.log, f"Log-Verbindung getrennt: {e}")
+
     def setup_tab_info(self):
         info_frame = ctk.CTkFrame(self.tab_info, fg_color="transparent")
         info_frame.pack(pady=50)
@@ -313,35 +349,86 @@ class InsaneFlasher(ctk.CTk):
         btn.pack(pady=20)
 
     def setup_tab_ctrl(self):
-        # Steuerung (Buttons: Play/Pause, Next, Prev, Volume)
-        ctrl_frame = ctk.CTkFrame(self.tab_ctrl, fg_color="transparent")
-        ctrl_frame.pack(pady=20, fill="both", expand=True)
+        # Scrollable Frame für Steuerung + DSP Regler
+        scroll_frame = ctk.CTkScrollableFrame(self.tab_ctrl, fg_color="transparent")
+        scroll_frame.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(ctrl_frame, text="Media Player", font=("Roboto", 20, "bold"), text_color="#3b8ed0").pack(pady=(0, 20))
+        # --- MEDIA PLAYER ---
+        ctk.CTkLabel(scroll_frame, text="Media Player", font=("Roboto", 20, "bold"), text_color="#3b8ed0").pack(pady=(10, 10))
 
-        btn_row = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
+        btn_row = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         btn_row.pack(pady=10)
 
-        ctk.CTkButton(btn_row, text="⏮ Zurück", width=110, height=45, corner_radius=20, fg_color="#333333", hover_color="#444444", command=lambda: self.send_action("button/bl_vorheriger_titel/press")).pack(side="left", padx=15)
-        ctk.CTkButton(btn_row, text="⏯ Play / Pause", width=160, height=60, corner_radius=30, fg_color="#3b8ed0", hover_color="#2980b9", font=("Roboto", 16, "bold"), command=lambda: self.send_action("button/bl_play_pause/press")).pack(side="left", padx=15)
-        ctk.CTkButton(btn_row, text="Weiter ⏭", width=110, height=45, corner_radius=20, fg_color="#333333", hover_color="#444444", command=lambda: self.send_action("button/bl_nachster_titel/press")).pack(side="left", padx=15)
+        encoded_prev = urllib.parse.quote("BL Vorheriger Titel")
+        encoded_play = urllib.parse.quote("BL Play-Pause")
+        encoded_next = urllib.parse.quote("BL Nächster Titel")
 
-        vol_frame = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
-        vol_frame.pack(pady=40, fill="x", padx=40)
+        ctk.CTkButton(btn_row, text="⏮ Zurück", width=110, height=45, corner_radius=20, fg_color="#333333", hover_color="#444444", command=lambda: self.send_action(f"button/{encoded_prev}/press")).pack(side="left", padx=15)
+        ctk.CTkButton(btn_row, text="⏯ Play / Pause", width=160, height=60, corner_radius=30, fg_color="#3b8ed0", hover_color="#2980b9", font=("Roboto", 16, "bold"), command=lambda: self.send_action(f"button/{encoded_play}/press")).pack(side="left", padx=15)
+        ctk.CTkButton(btn_row, text="Weiter ⏭", width=110, height=45, corner_radius=20, fg_color="#333333", hover_color="#444444", command=lambda: self.send_action(f"button/{encoded_next}/press")).pack(side="left", padx=15)
 
+        # --- BLUETOOTH VOLUME ---
+        vol_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+        vol_frame.pack(pady=(20, 30), fill="x", padx=40)
         ctk.CTkLabel(vol_frame, text="Bluetooth Lautstärke", font=("Roboto", 14)).pack(pady=(0, 10))
         self.vol_slider = ctk.CTkSlider(vol_frame, from_=0, to=100, button_color="#3b8ed0", button_hover_color="#2980b9", command=self.send_volume)
         self.vol_slider.pack(fill="x")
 
+        # --- SUBWOOFER DSP ---
+        ctk.CTkLabel(scroll_frame, text="2.1 Subwoofer DSP", font=("Roboto", 18, "bold"), text_color="#e67e22").pack(pady=(10, 10))
+
+        sub_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+        sub_frame.pack(pady=5, fill="x", padx=40)
+
+        ctk.CTkLabel(sub_frame, text="Crossover Frequenz (40-200 Hz)", font=("Roboto", 12)).pack(pady=(0, 5))
+        self.cross_slider = ctk.CTkSlider(sub_frame, from_=40, to=200, number_of_steps=32, button_color="#e67e22", button_hover_color="#d35400", command=lambda val: self.send_dsp_value("Subwoofer Crossover Frequenz", val))
+        self.cross_slider.set(80)
+        self.cross_slider.pack(fill="x", pady=(0, 15))
+
+        ctk.CTkLabel(sub_frame, text="Bass EQ Gain (0-10)", font=("Roboto", 12)).pack(pady=(0, 5))
+        self.sub_eq_slider = ctk.CTkSlider(sub_frame, from_=0, to=10, number_of_steps=10, button_color="#e67e22", button_hover_color="#d35400", command=lambda val: self.send_dsp_value("Subwoofer Bass EQ", val))
+        self.sub_eq_slider.set(0)
+        self.sub_eq_slider.pack(fill="x", pady=(0, 10))
+
+        # --- STEREO 5-BAND EQ ---
+        ctk.CTkLabel(scroll_frame, text="Front Stereo 5-Band EQ", font=("Roboto", 18, "bold"), text_color="#2ecc71").pack(pady=(20, 10))
+
+        eq_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+        eq_frame.pack(pady=5, fill="x", padx=40)
+
+        bands = [
+            ("Band 1 (60Hz)", "Front EQ Band 1 (60Hz)"),
+            ("Band 2 (230Hz)", "Front EQ Band 2 (230Hz)"),
+            ("Band 3 (910Hz)", "Front EQ Band 3 (910Hz)"),
+            ("Band 4 (3.6kHz)", "Front EQ Band 4 (3.6kHz)"),
+            ("Band 5 (14kHz)", "Front EQ Band 5 (14kHz)")
+        ]
+
+        self.eq_sliders = []
+        for label, entity in bands:
+            ctk.CTkLabel(eq_frame, text=label, font=("Roboto", 12)).pack(pady=(5, 0))
+            slider = ctk.CTkSlider(eq_frame, from_=-10, to=10, number_of_steps=20, button_color="#2ecc71", button_hover_color="#27ae60", command=lambda val, e=entity: self.send_dsp_value(e, val))
+            slider.set(0)
+            slider.pack(fill="x", pady=(0, 5))
+            self.eq_sliders.append(slider)
+
     def send_action(self, endpoint):
         ip = self.dropdown_mapping.get(self.device_dropdown.get())
         if not ip: return
-        threading.Thread(target=lambda: requests.post(f"http://{ip}/{endpoint}", timeout=2), daemon=True).start()
+        threading.Thread(target=lambda: self.session.post(f"http://{ip}/{endpoint}", timeout=2), daemon=True).start()
 
     def send_volume(self, value):
         ip = self.dropdown_mapping.get(self.device_dropdown.get())
         if not ip: return
-        threading.Thread(target=lambda: requests.post(f"http://{ip}/number/bluetooth_lautstarke/set?value={int(value)}", timeout=2), daemon=True).start()
+        # Nutze den exakten Entity Name mit URL-Encoding statt Objekt-ID
+        encoded_name = urllib.parse.quote("Bluetooth Lautstärke")
+        threading.Thread(target=lambda: self.session.post(f"http://{ip}/number/{encoded_name}/set?value={int(value)}", timeout=2), daemon=True).start()
+
+    def send_dsp_value(self, entity_name, value):
+        ip = self.dropdown_mapping.get(self.device_dropdown.get())
+        if not ip: return
+        encoded_name = urllib.parse.quote(entity_name)
+        threading.Thread(target=lambda: self.session.post(f"http://{ip}/number/{encoded_name}/set?value={int(value)}", timeout=2), daemon=True).start()
 
     # --- LOGIK FUNKTIONEN ---
     def add_device_to_ui(self, name, ip):
@@ -439,9 +526,9 @@ class InsaneFlasher(ctk.CTk):
         if not ip: return
         
         try:
-            # Wir nutzen deinen in YAML definierten bl_normal_start Button!
-            # Hinweis: Die Web-API erwartet die object_id aus dem Namen "WROOM Normal starten"
-            requests.post(f"http://{ip}/button/WROOM Normal starten/press", timeout=3)
+            # Wir nutzen deinen in YAML definierten WROOM Normal Boot Button!
+            encoded_btn = urllib.parse.quote("WROOM Normal Boot")
+            self.session.post(f"http://{ip}/button/{encoded_btn}/press", timeout=3)
             messagebox.showinfo("Hardware Reset", "⚡ Befehl gesendet!\nDer S3 startet den Bluetooth-Chip (WROOM) jetzt hart neu.")
         except Exception as e:
             messagebox.showerror("Netzwerk Fehler", f"Konnte den Neustart-Befehl nicht senden:\n{e}")
@@ -461,28 +548,31 @@ class InsaneFlasher(ctk.CTk):
             return
         self.is_fetching = True
         threading.Thread(target=self._fetch_api_data, args=(ip,), daemon=True).start()
+        self.start_log_stream(ip)
 
     def _fetch_api_data(self, ip):
-        def get_state(domain, object_id):
+        def get_state(domain, entity_name):
             try:
-                url = f"http://{ip}/{domain}/{object_id}"
-                r = requests.get(url, timeout=2).json() # Timeout auf 2s verkürzt
+                # Nutze urllib.parse.quote für ESPHome 2026.x Deprecated URL Warnungen
+                encoded_name = urllib.parse.quote(entity_name)
+                url = f"http://{ip}/{domain}/{encoded_name}"
+                # Nutze die self.session (Requests) für Keep-Alive
+                r = self.session.get(url, timeout=2).json()
                 return r.get("state", "N/A")
             except: return "Offline"
 
-        # Daten abrufen (ESPHome generiert URLs aus dem 'name' der Komponente)
-        # 2.1 Mapping Update
-        src = get_state("text_sensor", "active_audio_source")
-        sys_status = get_state("text_sensor", "insane_system_status")
-        t_amp = get_state("sensor", "ma12070p_temperature")
-        t_esp = get_state("sensor", "esp_ambient_temperature")
-        t_dsp = get_state("sensor", "rp2354_dsp_temperature")
-        bl_stat = get_state("text_sensor", "stream_status")
-        bl_song = get_state("text_sensor", "bluetooth_track")
-        bl_art = get_state("text_sensor", "bluetooth_artist")
-        fan = get_state("sensor", "fan_speed")
-        fault = get_state("binary_sensor", "amp_fault")
-        wifi = get_state("sensor", "wlan_signal")
+        # Daten abrufen (Exakte Namen aus dem YAML anstelle von Objekt-IDs)
+        src = get_state("text_sensor", "Active Audio Source")
+        sys_status = get_state("text_sensor", "Insane System Status")
+        t_amp = get_state("sensor", "Amp Temp (UART)")
+        t_esp = get_state("sensor", "ESP Ambient Temperature")
+        t_dsp = get_state("sensor", "RP2354 Temp (UART)")
+        bl_stat = get_state("text_sensor", "Stream Status")
+        bl_song = get_state("text_sensor", "Bluetooth Track")
+        bl_art = get_state("text_sensor", "Bluetooth Artist")
+        fan = get_state("sensor", "Fan Speed")
+        fault = get_state("binary_sensor", "Amp Fault")
+        wifi = get_state("sensor", "WLAN Signal")
         bl_version = get_state("text", "bl_firmware_version")
         rp_version = get_state("text", "rp2354_firmware_version")
         bt_conn = get_state("binary_sensor", "bluetooth_connected")
@@ -592,7 +682,8 @@ class InsaneFlasher(ctk.CTk):
             
             if target == "wroom":
                 self.after(0, lambda: status_lbl.configure(text="Schritt 1: Setze WROOM in Flash-Modus...", text_color="orange"))
-                requests.post(f"http://{ip}/button/wroom_flash_mode/press", timeout=5)
+                encoded_btn = urllib.parse.quote("WROOM Flash Mode")
+                self.session.post(f"http://{ip}/button/{encoded_btn}/press", timeout=5)
 
                 import time
                 time.sleep(2)
@@ -622,17 +713,20 @@ class InsaneFlasher(ctk.CTk):
                     esptool.main(command_args)
 
                 self.after(0, lambda: status_lbl.configure(text="Schritt 3: WROOM Neustart...", text_color="orange"))
-                requests.post(f"http://{ip}/button/wroom_normal_boot/press", timeout=5)
+                encoded_btn = urllib.parse.quote("WROOM Normal Boot")
+                self.session.post(f"http://{ip}/button/{encoded_btn}/press", timeout=5)
 
                 # INJECTION: Post version to ESPHome template text sensor
                 if self.online_version:
                     self.after(0, lambda: status_lbl.configure(text="Schritt 4: Version Injection...", text_color="orange"))
-                    try: requests.post(f"http://{ip}/text/bl_firmware_version/set?value={self.online_version}", timeout=3)
+                    encoded_txt = urllib.parse.quote("BL Firmware Version")
+                    try: self.session.post(f"http://{ip}/text/{encoded_txt}/set?value={self.online_version}", timeout=3)
                     except: pass
 
             elif target == "rp2354":
                 self.after(0, lambda: status_lbl.configure(text="Schritt 1: Setze RP2354 in Flash-Modus...", text_color="orange"))
-                requests.post(f"http://{ip}/button/rp2354_flash_mode/press", timeout=5)
+                encoded_btn = urllib.parse.quote("RP2354 Flash Mode")
+                self.session.post(f"http://{ip}/button/{encoded_btn}/press", timeout=5)
 
                 import time
                 time.sleep(2)
@@ -655,12 +749,14 @@ class InsaneFlasher(ctk.CTk):
                             self.after(0, lambda p=pct: status_lbl.configure(text=f"Flashing: {int(p*100)}%"))
 
                 self.after(0, lambda: status_lbl.configure(text="Schritt 3: RP2354 geflasht. Reboot.", text_color="orange"))
-                requests.post(f"http://{ip}/button/rp2354_normal_boot/press", timeout=5)
+                encoded_btn = urllib.parse.quote("RP2354 Normal Boot")
+                self.session.post(f"http://{ip}/button/{encoded_btn}/press", timeout=5)
 
                 # INJECTION: Post version to ESPHome template text sensor
                 if self.online_version:
                     self.after(0, lambda: status_lbl.configure(text="Schritt 4: Version Injection...", text_color="orange"))
-                    try: requests.post(f"http://{ip}/text/rp2354_firmware_version/set?value={self.online_version}", timeout=3)
+                    encoded_txt = urllib.parse.quote("RP2354 Firmware Version")
+                    try: self.session.post(f"http://{ip}/text/{encoded_txt}/set?value={self.online_version}", timeout=3)
                     except: pass
             
             self.after(0, lambda: status_lbl.configure(text="🚀 Update 100% erfolgreich!", text_color="#2ecc71"))
