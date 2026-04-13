@@ -372,6 +372,7 @@ switch:
   - platform: gpio
     name: "Red LED"
     id: led_red
+    entity_category: config
     pin:
       pcf8574: pcf_ui
       number: 3
@@ -381,6 +382,7 @@ switch:
   - platform: gpio
     name: "White LED"
     id: led_white
+    entity_category: config
     pin:
       pcf8574: pcf_ui
       number: 4
@@ -390,6 +392,7 @@ switch:
   - platform: gpio
     name: "Blue LED"
     id: led_blue
+    entity_category: config
     pin:
       pcf8574: pcf_ui
       number: 5
@@ -399,6 +402,7 @@ switch:
   - platform: gpio
     name: "Green LED (Ready)"
     id: led_green
+    entity_category: config
     pin:
       pcf8574: pcf_ui
       number: 6
@@ -409,6 +413,7 @@ switch:
   - platform: gpio
     name: "Yellow LED"
     id: led_yellow
+    entity_category: config
     pin:
       pcf8574: pcf_ui
       number: 7
@@ -1153,6 +1158,7 @@ button:
   - platform: template
     name: "WROOM Flash Mode"
     id: wroom_flash_mode
+    entity_category: config
     on_press:
       - logger.log: "Putting WROOM into download mode"
       - lambda: 'id(wroom_is_flashing) = true;'
@@ -1164,6 +1170,7 @@ button:
   - platform: template
     name: "WROOM Normal Boot"
     id: wroom_normal_boot
+    entity_category: config
     on_press:
       - logger.log: "Rebooting WROOM normally"
       - switch.turn_on: wroom_io0
@@ -1204,6 +1211,7 @@ button:
   - platform: template
     name: "RP2354 Flash Mode"
     id: rp2354_flash_mode
+    entity_category: config
     on_press:
       - globals.set:
           id: rp2354_is_flashing
@@ -1219,6 +1227,7 @@ button:
   - platform: template
     name: "RP2354 Normal Boot"
     id: rp2354_normal_boot
+    entity_category: config
     on_press:
       - globals.set:
           id: rp2354_is_flashing
