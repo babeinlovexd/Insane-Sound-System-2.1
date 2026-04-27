@@ -20,8 +20,8 @@ mock_modules = [
 for module in mock_modules:
     sys.modules[module] = MagicMock()
 
-# Now we can import the function to test
-from InsaneFlasher import get_app_dir
+# Now we can import the functions to test
+from InsaneFlasher import get_app_dir, get_config_path, get_firmware_path
 
 class TestGetAppDir(unittest.TestCase):
 
@@ -67,6 +67,20 @@ class TestGetAppDir(unittest.TestCase):
         get_app_dir()
 
         mock_makedirs.assert_not_called()
+
+class TestConfigPaths(unittest.TestCase):
+
+    @patch('InsaneFlasher.get_app_dir')
+    def test_get_config_path(self, mock_get_app_dir):
+        mock_get_app_dir.return_value = '/fake/app/dir'
+        expected = os.path.join('/fake/app/dir', 'iss_favorites.json')
+        self.assertEqual(get_config_path(), expected)
+
+    @patch('InsaneFlasher.get_app_dir')
+    def test_get_firmware_path(self, mock_get_app_dir):
+        mock_get_app_dir.return_value = '/fake/app/dir'
+        expected = os.path.join('/fake/app/dir', 'latest_firmware.bin')
+        self.assertEqual(get_firmware_path(), expected)
 
 if __name__ == '__main__':
     unittest.main()
