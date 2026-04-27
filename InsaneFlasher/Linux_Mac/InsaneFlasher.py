@@ -740,13 +740,17 @@ class InsaneFlasher(ctk.CTk):
                     s.connect((ip, 6667))
                     file_size = os.path.getsize(get_firmware_path())
                     sent = 0
+                    last_pct_sent = -1
                     with open(get_firmware_path(), 'rb') as f:
                         while chunk := f.read(1024):
                             s.sendall(chunk)
                             sent += len(chunk)
                             pct = sent / file_size
-                            self.after(0, lambda p=pct: self.flash_progress.set(p))
-                            self.after(0, lambda p=pct: status_lbl.configure(text=f"Flashing: {int(p*100)}%"))
+                            # Optimization: only update UI if progress percentage changed by at least 1%
+                            if int(pct * 100) > last_pct_sent or sent == file_size:
+                                self.after(0, lambda p=pct: self.flash_progress.set(p))
+                                self.after(0, lambda p=pct: status_lbl.configure(text=f"Flashing: {int(p*100)}%"))
+                                last_pct_sent = int(pct * 100)
 
                 self.after(0, lambda: status_lbl.configure(text="Schritt 3: RP2354 geflasht. Reboot.", text_color="orange"))
                 encoded_btn = urllib.parse.quote("RP2354 Normal Boot")
