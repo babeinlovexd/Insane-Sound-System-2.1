@@ -1017,19 +1017,19 @@ uart:
       sequence:
         - lambda: |-
             std::string line(bytes.begin(), bytes.end());
-            if (line.rfind("CLIP_AMP1:", 0) == 0) {
+            if (line.length() > 10 && line.rfind("CLIP_AMP1:", 0) == 0) {
                 int status = atoi(line.substr(10).c_str());
                 id(amp1_clip_status).publish_state(status ? "Clips detected!" : "Clear");
             }
-            if (line.rfind("CLIP_AMP2:", 0) == 0) {
+            if (line.length() > 10 && line.rfind("CLIP_AMP2:", 0) == 0) {
                 int status = atoi(line.substr(10).c_str());
                 id(amp2_clip_status).publish_state(status ? "Clips detected!" : "Clear");
             }
-            if (line.rfind("TEMP_RP:", 0) == 0) {
+            if (line.length() > 8 && line.rfind("TEMP_RP:", 0) == 0) {
                 float temp = atof(line.substr(8).c_str());
                 id(temp_rp_uart).publish_state(temp);
             }
-            if (line.rfind("TEMP_AMPS:", 0) == 0) {
+            if (line.length() > 10 && line.rfind("TEMP_AMPS:", 0) == 0) {
                 float temp = atof(line.substr(10).c_str());
                 id(temp_amp_uart).publish_state(temp);
             }

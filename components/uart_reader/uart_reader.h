@@ -70,7 +70,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
   void process_line(char *line) {
     // Check for DSP Status Format: "SOURCE_CHANGED:<name>"
     std::string s_line(line);
-    if (s_line.find("SOURCE_CHANGED:") == 0) {
+    if (s_line.length() > 15 && s_line.find("SOURCE_CHANGED:") == 0) {
       if (status_sensor_) {
         status_sensor_->publish_state(s_line.substr(15));
       }
@@ -78,7 +78,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     }
 
     // Format 6: RP2354 System Status -> "SYS_STAT:ok"
-    if (s_line.find("SYS_STAT:") == 0) {
+    if (s_line.length() > 9 && s_line.find("SYS_STAT:") == 0) {
       if (sys_stat_sensor_) {
         sys_stat_sensor_->publish_state(s_line.substr(9));
       }
@@ -86,7 +86,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     }
 
     // Format 4: RP2354 Fan -> "FAN:50"
-    if (s_line.find("FAN:") == 0) {
+    if (s_line.length() > 4 && s_line.find("FAN:") == 0) {
       if (fan_sensor_) {
         float fan_val = atof(s_line.substr(4).c_str());
         fan_sensor_->publish_state(fan_val);
@@ -95,7 +95,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     }
 
     // Format 5: RP2354 Fault -> "FAULT:1"
-    if (s_line.find("FAULT:") == 0) {
+    if (s_line.length() > 6 && s_line.find("FAULT:") == 0) {
       if (fault_sensor_) {
         int fault_val = atoi(s_line.substr(6).c_str());
         fault_sensor_->publish_state(fault_val > 0);
@@ -104,7 +104,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     }
 
     // Format 3: RP2354 Temp -> "TEMP:42.5" or "TEMP_RP:42.5"
-    if (s_line.find("TEMP:") == 0) {
+    if (s_line.length() > 5 && s_line.find("TEMP:") == 0) {
       if (temp_sensor_) {
         float temp_val = atof(s_line.substr(5).c_str());
         temp_sensor_->publish_state(temp_val);
@@ -113,7 +113,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     }
 
     // Support modern TEMP_RP format as well
-    if (s_line.find("TEMP_RP:") == 0) {
+    if (s_line.length() > 8 && s_line.find("TEMP_RP:") == 0) {
       if (temp_sensor_) {
         float temp_val = atof(s_line.substr(8).c_str());
         temp_sensor_->publish_state(temp_val);
@@ -140,7 +140,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     }
 
     // Parse BT_VOL to sync the volume slider with phone changes
-    if (s_line.find("BT_VOL:") == 0) {
+    if (s_line.length() > 7 && s_line.find("BT_VOL:") == 0) {
       if (bt_vol_sensor_) {
         float vol = atof(s_line.substr(7).c_str());
         bt_vol_sensor_->publish_state(vol);
@@ -149,7 +149,7 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     }
 
     // Parse BT_CONN to track connection status
-    if (s_line.find("BT_CONN:") == 0) {
+    if (s_line.length() > 8 && s_line.find("BT_CONN:") == 0) {
       if (bt_conn_sensor_) {
         int conn = atoi(s_line.substr(8).c_str());
         bt_conn_sensor_->publish_state(conn > 0);
@@ -158,21 +158,21 @@ class CustomUARTReader : public esphome::Component, public esphome::uart::UARTDe
     }
 
     // Parse Track/Artist/Album using the updated exact strings from WROOM
-    if (s_line.find("TITLE:") == 0) {
+    if (s_line.length() > 6 && s_line.find("TITLE:") == 0) {
       if (track_sensor_) {
         track_sensor_->publish_state(s_line.substr(6));
       }
       return;
     }
 
-    if (s_line.find("ARTIST:") == 0) {
+    if (s_line.length() > 7 && s_line.find("ARTIST:") == 0) {
       if (artist_sensor_) {
         artist_sensor_->publish_state(s_line.substr(7));
       }
       return;
     }
 
-    if (s_line.find("ALBUM:") == 0) {
+    if (s_line.length() > 6 && s_line.find("ALBUM:") == 0) {
       if (album_sensor_) {
         album_sensor_->publish_state(s_line.substr(6));
       }
