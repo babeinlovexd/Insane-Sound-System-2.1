@@ -5,6 +5,7 @@ import logging
 import requests
 import subprocess
 import os
+import socket
 from zeroconf import ServiceBrowser, Zeroconf
 
 # Simulating finding the S3 via zeroconf (from V5 concept)
@@ -77,7 +78,6 @@ def flash_chip(ip, target_chip, firmware_path):
         print(f"Streaming raw firmware binary payload to custom serial bootloader...")
         
         try:
-            import socket
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(15)
                 s.connect((ip, target_port))
@@ -115,13 +115,12 @@ if __name__ == "__main__":
         # We assume the listener populates a global or we just extract the IP.
         # Since MyListener in this script just prints the IP, we will implement
         # a simple blocking search here:
-        from zeroconf import ServiceBrowser, Zeroconf
         
         found_ip = None
         class IPFinder:
             def remove_service(self, zeroconf, type, name): pass
             def add_service(self, zeroconf, type, name):
-                nonlocal found_ip
+                global found_ip
                 info = zeroconf.get_service_info(type, name)
                 if info and "insane" in name.lower():
                     found_ip = info.parsed_addresses()[0]
