@@ -742,7 +742,7 @@ class InsaneFlasher(ctk.CTk):
                     sent = 0
                     last_pct_sent = -1
                     with open(get_firmware_path(), 'rb') as f:
-                        while chunk := f.read(1024):
+                        while chunk := f.read(8192):
                             s.sendall(chunk)
                             sent += len(chunk)
                             pct = sent / file_size
