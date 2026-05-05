@@ -116,22 +116,24 @@ if __name__ == "__main__":
         # Since MyListener in this script just prints the IP, we will implement
         # a simple blocking search here:
         
-        found_ip = None
         class IPFinder:
+            def __init__(self):
+                self.found_ip = None
             def remove_service(self, zeroconf, type, name): pass
             def add_service(self, zeroconf, type, name):
                 global found_ip
                 info = zeroconf.get_service_info(type, name)
                 if info and "insane" in name.lower():
-                    found_ip = info.parsed_addresses()[0]
+                    self.found_ip = info.parsed_addresses()[0]
 
+        ip_finder = IPFinder()
         zc = Zeroconf()
-        browser = ServiceBrowser(zc, "_esphomelib._tcp.local.", IPFinder())
+        browser = ServiceBrowser(zc, "_esphomelib._tcp.local.", ip_finder)
         time.sleep(3)
         zc.close()
 
-        if found_ip:
-            ip = found_ip
+        if ip_finder.found_ip:
+            ip = ip_finder.found_ip
             print(f"Found S3 at {ip}")
         else:
             print("Could not find S3 via ZeroConf. Please provide --ip manually.")
