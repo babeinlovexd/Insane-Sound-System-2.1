@@ -50,8 +50,8 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 # Default URLs; dynamically resolved via GitHub API where possible.
-GITHUB_API_LATEST = "https://api.github.com/repos/babeinlovexd/Insane-Sound-System/releases/latest"
-GITHUB_URL = "https://github.com/babeinlovexd/Insane-Sound-System"
+GITHUB_API_LATEST = "https://api.github.com/repos/babeinlovexd/Insane-Sound-System-2.1/releases/latest"
+GITHUB_URL = "https://github.com/babeinlovexd/Insane-Sound-System-2.1"
 UPDATE_CHECK_INTERVAL = 3600 # Sekunden
 
 class DeviceListener:
@@ -658,20 +658,16 @@ class InsaneFlasher(ctk.CTk):
 
             self.after(0, lambda: status_lbl.configure(text="Schritt 0: Lade Firmware von GitHub...", text_color="orange"))
 
+            # Match only the binary intended for this chip, never a similarly named asset.
+            firmware_assets = {"wroom":"wroom.bin","rp2354":"rp2354.bin"}
+            asset_name = firmware_assets[target]
             download_url = None
-            if hasattr(self, 'github_assets') and self.github_assets:
-                # Try to find target specific binary in the release assets
-                for asset in self.github_assets:
-                    if target.lower() in asset['name'].lower():
-                        download_url = asset['browser_download_url']
-                        break
-
+            for asset in getattr(self, "github_assets", []):
+                if asset.get("name") == asset_name:
+                    download_url = asset["browser_download_url"]
+                    break
             if not download_url:
-                # Fallback static URLs if release API fails or no match
-                if target == "wroom":
-                    download_url = "https://raw.githubusercontent.com/babeinlovexd/Insane-Sound-System/main/Firmware/WROOM32D/firmware.bin"
-                else:
-                    download_url = "https://raw.githubusercontent.com/babeinlovexd/Insane-Sound-System/main/Firmware/RP2354A/firmware.bin"
+                download_url = f"{GITHUB_URL}/releases/latest/download/{asset_name}"
 
             r = requests.get(download_url, timeout=15)
             r.raise_for_status()

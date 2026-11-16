@@ -1,76 +1,82 @@
-<div align="center">
+<p align="center">
+  <a href="https://github.com/babeinlovexd"><img src="https://raw.githubusercontent.com/babeinlovexd/babeinlovexd/main/bxd-github-header.svg" width="520" alt="BxD / BabeinlovexD"></a>
+</p>
 
-# 🔊 Insane Sound System 2.1
-### The Ultimate Triple-Brain Open-Source DSP Audio Matrix
+# Insane Sound System 2.1
 
-<img src="https://img.shields.io/github/v/release/babeinlovexd/Insane-Sound-System-2.1?style=for-the-badge&color=2ecc71" alt="Latest Release">
-<img src="https://img.shields.io/badge/Hardware-V0.0.0-f39c12?style=for-the-badge&logo=pcb" alt="Hardware Version">
-<img src="https://img.shields.io/badge/Status-BETA-ff9800?style=for-the-badge&logo=test-tube" alt="Status: Beta">
-<img src="https://img.shields.io/github/actions/workflow/status/babeinlovexd/Insane-Sound-System-2.1/release-firmware.yml?style=for-the-badge&logo=githubactions&logoColor=white" alt="CI/CD Build Status">
-<br><br>
+[English](README_en.md) · [Fragen & Fehler](https://github.com/babeinlovexd/Insane-Sound-System-2.1/issues) · [Releases](https://github.com/babeinlovexd/Insane-Sound-System-2.1/releases)
 
-<img src="https://img.shields.io/badge/ESPHome-Ready-03A9F4?style=for-the-badge&logo=esphome" alt="ESPHome">
-<img src="https://img.shields.io/badge/Home_Assistant-Native-41BDF5?style=for-the-badge&logo=home-assistant" alt="Home Assistant">
-<img src="https://img.shields.io/badge/PlatformIO-RP2354%20%26%20WROOM--32D-F6822A?style=for-the-badge&logo=platformio&logoColor=white" alt="PlatformIO">
-<br><br>
+Ein **auf echter Hardware vom Entwickler erprobtes 2.1-Audio-Testprojekt**. ESP32-S3, ESP32-WROOM-32D und RP2354A trennen ESPHome-/Netzwerksteuerung, Bluetooth-Empfang und DSP. Es ist eine eigene experimentelle Hardwareplattform und unterscheidet sich vom Sound System V5.
 
-<img src="https://img.shields.io/badge/Main_Brain-ESP32--S3-E7352C?style=for-the-badge&logo=espressif" alt="Main: ESP32-S3">
-<img src="https://img.shields.io/badge/BT_Radio-WROOM--32D-0052CC?style=for-the-badge&logo=bluetooth" alt="BT: WROOM-32D">
-<img src="https://img.shields.io/badge/DSP-RP2354A-8A2BE2?style=for-the-badge&logo=raspberrypi" alt="DSP: RP2354A">
-<img src="https://img.shields.io/badge/Amps-Dual_MA12070P-e74c3c?style=for-the-badge&logo=stmicroelectronics" alt="Amps: MA12070P">
-<br><br>
+## Architektur
 
-<img src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey?style=for-the-badge&logo=creative-commons" alt="License: CC BY-NC-SA 4.0">
-<br><br>
+| Controller | Aufgabe |
+| :--- | :--- |
+| ESP32-S3 | Home Assistant/ESPHome, Netzwerkaudio, Display, Encoder, Temperaturen und Steuerung |
+| ESP32-WROOM-32D | Bluetooth-A2DP-Eingang und Metadaten |
+| RP2354A | Audiorouting, DSP sowie Verstärker-, LED- und Lüftersteuerung |
 
-> **⚠️ WICHTIGER HINWEIS:** Das Projekt befindet sich aktuell im **BETA-Status**. Die Hardware-Architektur steht, aber die Firmware wird aktiv weiterentwickelt. Expect some noise, expect some bugs – but mostly, expect insane audio!
+Das Design enthält einen Fünfband-EQ für Frontkanäle, Subwoofer-Tiefpass, zwei MA12070P-Verstärker und einen S/PDIF-Eingang. Tatsächliche Latenz und Verhalten hängen von Firmware und Hardware ab; daraus folgt keine Zusage latenzfreier oder universell getesteter Funktion.
 
----
+## Hardware & Dateien
 
-## 🧠 Die Architektur: The Triple-Brain Matrix
+Die ausführliche [Pin-Belegung](Firmware/Pin_Mapping.md) beschreibt die Controllerverbindungen. Für den konkreten Aufbau mit Haupt-YAML und Firmwarequellcode des verwendeten Stands abgleichen.
 
-Um Management, Konnektivität und High-End-Audioverarbeitung kompromisslos voneinander zu trennen, nutzt das Insane Sound System 2.1 eine dedizierte Drei-Prozessor-Architektur:
+- [ESPHome/insane-sound-system-2.1.yaml](ESPHome/insane-sound-system-2.1.yaml): S3-Konfiguration.
+- [Firmware/WROOM32D](Firmware/WROOM32D): PlatformIO-Umgebung `esp32dev`.
+- [Firmware/RP2354A](Firmware/RP2354A): PlatformIO-Umgebung `rp2354`.
+- [InsaneFlasher](InsaneFlasher): Desktop-Tool und Proxy-Flasher-Skripte.
 
-### 1. ESP32-S3 (The Director)
-**Das absolute Kontrollzentrum.** Er kommuniziert mit der Außenwelt und dirigiert als souveräner Master die anderen Chips.
-Als **Home Assistant Boss** stellt er via ESPHome alle Regler (EQ, Crossover, Volume) bereit und übersetzt sie in Echtzeit-UART-Befehle. Er übernimmt das **thermisches Management**, sammelt sämtliche Systemtemperaturen und berechnet daraus die perfekte PWM-Lüfterkurve. Alle Systeminfos pusht er gestochen scharf auf das **Widescreen LCD Display**, während er gleichzeitig die haptischen Eingaben am **Frontpanel** (über PCF8574T und Encoder) auswertet. Firmware-Updates verteilt er als intelligenter **Proxy-Flasher** Over-The-Air an seine Co-Prozessoren, bietet aber für den allerersten Setup-Prozess eine komfortable **native USB-Schnittstelle**.
+## Installation
 
-### 2. ESP32-WROOM-32D (The Radio)
-**Der Spezialist für drahtloses Audio.** Er ist mit vollem **Fokus** exklusiv für den Bluetooth A2DP Sink zuständig. Weil er sich durch nichts anderes ablenken lässt, bricht der Stream niemals ab – selbst wenn der S3 gerade schwer beschäftigt ist. Durch das **direkte Routing** reicht er den I2S-Audiostream und die Play/Pause-Zustände ohne Umwege und Verzögerungen direkt an die DSP-Matrix weiter.
+1. Hardwareaufbau und Pinbelegung vor dem Flashen kontrollieren.
+2. Haupt-YAML nach ESPHome kopieren und eine lokale `secrets.yaml` mit `api_encryption_key`, `ota_password`, `wifi_ssid`, `wifi_password` und `ap_password` anlegen.
+3. `ha_player_id` anpassen, Konfiguration validieren/kompilieren und den S3 erstmals per USB flashen.
+4. Passende `wroom.bin` und `rp2354.bin` aus diesem Repository bauen oder aus dessen Releases beziehen. Jeden Zielchip über die zu Aufbau und Bootloader passende Schnittstelle flashen.
+5. S3 in Home Assistant hinzufügen und Quellenumschaltung, Lautstärke, Kühlung und Fehlereingänge einzeln prüfen.
 
-### 3. RP2354A (The DSP & Audio-Matrix)
-**Das audiophile Herzstück.** Dieser Chip nutzt seinen dedizierten zweiten Kern (Core 1) und die integrierte Hardware-FPU ausschließlich für die Signalverarbeitung. Als **Hardware-DSP** berechnet er völlig latenzfrei einen Stereo-5-Band-EQ für die Front-Lautsprecher sowie einen dynamischen Low-Pass-Filter für den Subwoofer. Seine **I2C Amp-Control** konfiguriert die Dual-MA12070P Endstufen beim Booten exakt für das 2.1 Setup und fesselt die Hardware-Lautstärke an das vorgegebene Limit. Er übernimmt das **Zero-Latency Switching** zwischen WLAN, Bluetooth und S/PDIF (TV) per DMA/PIO und steuert als visuelles Highlight das exakte 40-Bit-Timing der **WS2805 RGBWW-LEDs**.
+## Firmware bauen
 
----
+Mit installiertem PlatformIO im Repository-Stamm ausführen:
 
-[![Pin Mapping](https://img.shields.io/badge/Hardware-Pin_Mapping_Reference-f39c12?style=for-the-badge&logo=microchip)](Firmware/Pin_Mapping.md)
+```bash
+pio run -d Firmware/WROOM32D -e esp32dev
+pio run -d Firmware/RP2354A -e rp2354
+```
 
----
+Die S3-YAML wird separat mit ESPHome gebaut. Die PlatformIO-Ausgaben liegen unter `.pio/build/<Umgebung>/` im jeweiligen Firmwareordner. Release-Binaries gehören jeweils zum bezeichneten Chip und sind nicht austauschbar.
 
-## ⚖️ Lizenz
-Dieses komplette Projekt (Hardware und Software) steht unter der [CC BY-NC-SA 4.0 Lizenz](https://creativecommons.org/licenses/by-nc-sa/4.0/). 
-Das bedeutet: Nachbauen und Anpassen für private Zwecke ist ausdrücklich erwünscht, jede kommerzielle Nutzung oder der Verkauf sind strikt verboten!
+## InsaneFlasher & Proxy-Voraussetzungen
 
----
+Der Python-Quellcode liegt unter [InsaneFlasher/Linux_Mac/InsaneFlasher.py](InsaneFlasher/Linux_Mac/InsaneFlasher.py). Benötigte Pakete: `customtkinter requests esptool zeroconf pillow pyserial`. Aus dem eigenen Verzeichnis starten, damit Grafiken gefunden werden.
 
-## ☕ Support dieses Projekts
-2.1 hat extrem viel Zeit, Nerven und Kaffee gekostet. Wenn dir das System gefällt und du meine Arbeit unterstützen möchtest, freue ich mich riesig über einen virtuellen Kaffee!
+Das Tool prüft die Releases **dieses 2.1-Repositories** und wählt `wroom.bin` bzw. `rp2354.bin` anhand des exakten Dateinamens. Bereits heruntergeladene EXE-Dateien ändern sich durch Quellcodekorrekturen nicht; verwende eine zum Release gehörende neu gebaute EXE.
 
-<a href="https://www.paypal.me/babeinlovexd">
-  <img src="https://img.shields.io/badge/Donate-PayPal-blue.svg?style=for-the-badge&logo=paypal" alt="Donate mit PayPal">
-</a>
+Die WROOM-Proxyverbindung nutzt TCP-Port **6666**, der RP2354-Pfad **6667**. **Serielles RP2354-Proxy-Flashen setzt einen kompatiblen eigenen Bootloader voraus.** Die native ROM implementiert das hier verwendete rohe TCP-zu-UART-Datenprotokoll nicht. Eine erfolgreiche Netzwerkübertragung belegt deshalb noch kein erfolgreiches DSP-Flashen. Ohne passenden Bootloader ist der nativ unterstützte Flashweg zu verwenden.
 
-Jeder Cent fließt direkt in die Entwicklung von 2.1 und neue Prototypen! 🚀
----
+## Fehlersuche
 
-## 👨‍💻 Entwickelt von
+- **Falsche Firmware/Update:** 2.1-Repository, Ziel-Dateiname und Tool-Build kontrollieren; V5-Binaries sind kein Ersatz.
+- **DSP startet nach Proxytransfer nicht:** Installierten Bootloader prüfen und passenden lokalen Flashweg nutzen.
+- **Quellenumschaltung oder Bedienung:** I2S-, Metadaten-UART- und DSP-Steuerleitungen getrennt prüfen.
+- **Temperatur-/Fehlermeldungen:** Tatsächlichen Sensortyp und Adresse mit YAML/Bestückung abgleichen, bevor Schutzparameter geändert werden.
 
-| [<img src="https://avatars.githubusercontent.com/u/43302033?v=4" width="100"><br><sub>**Christopher**</sub>](https://github.com/babeinlovexd) |
-| :---: |
+## Lizenz
+
+[CC BY-NC-SA 4.0](LICENSE). Es gilt die bestehende Projektlizenz. Drittanbieter-Komponenten behalten ihre jeweiligen Lizenzen.
 
 ---
 
-</div>
+## Builds und Releases
 
+Version: **0.1.6** ([VERSION](VERSION)). [GitHub Actions](.github/workflows/release.yml) prüft Pushes und Pull Requests. Ein Tag passend zu `v` + `VERSION` veröffentlicht das Release erst nach erfolgreichen Jobs; manuelle Läufe liefern Build-Artefakte. [Downloads](https://github.com/babeinlovexd/Insane-Sound-System-2.1/releases).
 
+ESPHome-CI verwendet Platzhalter-Zugangsdaten und flasht keine Geräte. Vor dem Einsatz eigene Secrets und Pinbelegung prüfen.
 
+## Mitmachen
+
+Fragen, Fehlerberichte und Beiträge sind willkommen. Nenne Version, Aufbau und Schritte zum Nachstellen im [Issue](https://github.com/babeinlovexd/Insane-Sound-System-2.1/issues). Größere Änderungen besprechen wir am besten vor einem Pull Request.
+
+Dieses Hobbyprojekt unterstützen: [PayPal](https://www.paypal.me/babeinlovexd).
+
+[BxD / BabeinlovexD](https://github.com/babeinlovexd) · [Website](https://babeinlovexd.de/)

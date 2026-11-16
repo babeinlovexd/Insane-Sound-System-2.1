@@ -1,148 +1,82 @@
-# 🔊 Insane Sound System 2.1
-<div align="center">
-  <img src="https://img.shields.io/github/v/release/babeinlovexd/Insane-Sound-System?style=for-the-badge&color=2ecc71" alt="Latest Release">
-  <img src="https://img.shields.io/badge/Status-Stable-2ecc71?style=for-the-badge" alt="Status">
-  <img src="https://img.shields.io/badge/ESPHome-Ready-03A9F4?style=for-the-badge&logo=esphome" alt="ESPHome">
-  <img src="https://img.shields.io/badge/Hardware-2.1.5-f39c12?style=for-the-badge&logo=pcb" alt="Hardware Version">
-  <img src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey?style=for-the-badge&logo=creative-commons" alt="License: CC BY-NC-SA 4.0">
-</div>
-<br>
+<p align="center">
+  <a href="https://github.com/babeinlovexd"><img src="https://raw.githubusercontent.com/babeinlovexd/babeinlovexd/main/bxd-github-header.svg" width="520" alt="BxD / BabeinlovexD"></a>
+</p>
 
-🌍 **[Lies das auf Deutsch](README.md)**
+# Insane Sound System 2.1
 
-Welcome to the **Insane Sound System 2.1**, the ultimate, smart high-end Wi-Fi & Bluetooth speaker controller!
+[Deutsch](README.md) · [Issues](https://github.com/babeinlovexd/Insane-Sound-System-2.1/issues) · [Releases](https://github.com/babeinlovexd/Insane-Sound-System-2.1/releases)
 
-Months of development, countless prototypes, sweat, tears, and the relentless desire to create the absolute perfect audio hub went into this PCB. The **Insane Sound System 2.1** is the ultimate result of this madness.
+A **2.1 audio test project verified on real hardware by its author**. It separates ESPHome/network control, Bluetooth reception and DSP across an ESP32-S3, ESP32-WROOM-32D and RP2354A. It is an experimental hardware platform, distinct from Sound System V5.
 
-**What is the Insane Sound System anyway?**
-It's not just an amplifier board. It is the uncompromising, smart centerpiece for your self-built high-end audio box. It combines audiophile hardware with the infinite flexibility of smart homes, giving you absolute control over sound, light, and hardware - all on a tiny, professional 100x100mm PCB.
+## Architecture
 
-### 🔥 What can this thing do?
-This board is armed to the teeth with features:
-* **Seamless Dual Audio Sources:** Stream music via Wi-Fi (Home Assistant/ESPHome) or connect your phone directly via Bluetooth. A dedicated hardware multiplexer switches losslessly and completely pop-free between the audio sources.
-* **Bluetooth with Metadata:** The Bluetooth chip not only streams music but also sends the title, artist, album, and play/pause status straight to your smart home dashboard.
-* **Insane Turbo Mode:** Too quiet? A digitally switchable gain boost on the hardware level extracts maximum volume from the TPA3110 amplifier.
-* **3-Zone RGB Lightshow:** Control up to three separate 24V WS28xx LED strips straight from the board (with built-in level shifters for clean 5V data signals). Including effects like "Knight Rider", "Fireworks", or "Rainbow".
-* **Smart Thermal Management:** Three independent temperature sensors (I2C) monitor the amplifier, voltage regulators, and case temperature. If it gets hot, the system steplessly turns up a 5V PWM case fan. If there's a risk of heat death, the automatic emergency shutdown kicks in.
-* **Fully Automatic Power Saving Logic:** The amplifier and DAC are put into standby (mute) on the hardware side when no music is playing. No background noise, no unnecessary power consumption.
-* **Over-The-Air (OTA) Updates for ALL Chips:** Flash not only the main system via Wi-Fi but also – thanks to our custom InsaneFlasher – the separated Bluetooth chip completely wirelessly over the network!
+| Controller | Responsibility |
+| :--- | :--- |
+| ESP32-S3 | Home Assistant/ESPHome, network audio, display, encoder, temperatures and control |
+| ESP32-WROOM-32D | Bluetooth A2DP input and metadata |
+| RP2354A | Audio routing, DSP, amplifier/LED/fan control |
 
-This version was developed entirely from scratch. The goal: Maximum audio performance, foolproof operation, and a hardware design that can be professionally manufactured while still being completely relaxed to assemble at home.
+The design includes a five-band front-channel EQ, subwoofer low-pass, two MA12070P amplifiers and S/PDIF input. Actual latency and supported behavior depend on firmware and hardware; this is not a zero-latency or universally tested compatibility claim.
 
-<img src="Images/3.png" width="400" alt="Insane Sound System 2.1 - 3D Render">
+## Hardware & files
 
-## ✨ What's new in 2.1? (Hardware & Features)
+The detailed [pin mapping](Firmware/Pin_Mapping.md) describes controller interconnections. Compare it with the actual main YAML and firmware sources for the revision being built.
 
-We didn't do things by halves. 2.1 brings massive under-the-hood upgrades:
+- [ESPHome/insane-sound-system-2.1.yaml](ESPHome/insane-sound-system-2.1.yaml): S3 configuration.
+- [Firmware/WROOM32D](Firmware/WROOM32D): PlatformIO environment `esp32dev`.
+- [Firmware/RP2354A](Firmware/RP2354A): PlatformIO environment `rp2354`.
+- [InsaneFlasher](InsaneFlasher): desktop utility and proxy flashing scripts.
 
-* **Compact 100x100mm Design:** The PCB fits in almost any enclosure and stays just under the magic limit to be ordered extremely cheaply from PCB manufacturers. Better thermals and optimal routing in the smallest of spaces!
-* **Hand-soldering friendly SMD Design:** The board consists of 90% SMD components for shorter, cleaner signal paths and a modern design. **Don't panic:** The smallest components are strictly limited to **size 1206**! You don't need a microscope or steady surgeon hands; everything can be soldered completely relaxed by hand.
-* **Dual-Brain Architecture:** A modern ESP32-S3 serves as the main brain controlling Home Assistant, Wi-Fi, and LEDs. A dedicated ESP32-WROOM-32E cares *exclusively* about lossless Bluetooth audio.
-* **Real Hardware Multiplexer:** The SN74CB3Q3257 chip switches the I2S audio signal lightning-fast and without annoying pops between Wi-Fi (S3) and Bluetooth (WROOM).
-* **Smart Temperature Management:** Three LM75A sensors monitor the amplifier (TPA3110), the voltage regulators, and the ESP32 environment. A 5V case fan is steplessly controlled via PWM as soon as it gets warm in the case.
-* **Over-The-Air Bluetooth Updates:** The WROOM module can now be flashed completely wirelessly via Wi-Fi. No USB cable, no screwing - just at the push of a button in the dashboard!
+## Installation
 
-  > **💡 Note on Audio Architecture:** The Insane Sound System v5.2 now uses the cutting-edge, modular `platform: speaker` audio pipeline of ESPHome (compatible with ESPHome 2026.3.0+). Your ESP32 benefits from native transcoding, meaning Home Assistant (from 2024.10+) efficiently streams the audio, taking the computational load off the microcontroller. This ensures much more stable streams, making it the perfect partner for Music Assistant!
+1. Check the assembled hardware and its pin mapping before flashing.
+2. Copy the main YAML into ESPHome and create a local `secrets.yaml` with `api_encryption_key`, `ota_password`, `wifi_ssid`, `wifi_password` and `ap_password`.
+3. Adjust `ha_player_id`, validate/compile the configuration and initially flash the S3 via USB.
+4. Build or obtain the matching `wroom.bin` and `rp2354.bin` from this repository's releases. Flash each target using the appropriate interface and bootloader for the assembled board.
+5. Add the S3 to Home Assistant and test audio routing, volume, cooling and fault inputs individually.
 
-<img src="Images/2.svg" width="400" alt="PCB Layout 2D View">
+## Building firmware
 
----
+With PlatformIO installed, run from the repository root:
 
-## 🛒 Shopping List & Components (BOM)
+```bash
+pio run -d Firmware/WROOM32D -e esp32dev
+pio run -d Firmware/RP2354A -e rp2354
+```
 
-You can find the complete and detailed list of all required components in the `BOM/` folder (as file `BOM_insane-sound-system-v5_xxxx-xx-xx.csv`).
+The S3 YAML is built with ESPHome separately. Outputs for the PlatformIO targets are under their respective `.pio/build/<environment>/` directories. Release binaries are target-specific, not interchangeable.
 
-Almost all standard components (like the 1206 resistors, capacitors, ESP modules, and the amplifier chip) can easily be ordered in many shops.
+## InsaneFlasher & proxy prerequisites
 
----
+The Python desktop source is [InsaneFlasher/Linux_Mac/InsaneFlasher.py](InsaneFlasher/Linux_Mac/InsaneFlasher.py). Its dependencies are `customtkinter requests esptool zeroconf pillow pyserial`. Run it from its own directory to keep its graphics available.
 
-## 🛠️ Step-by-Step Guide
+The utility checks this **2.1 repository's releases**. It selects `wroom.bin` or `rp2354.bin` by exact filename. Existing downloaded EXEs are not changed by a source-code update; use an executable built from the corresponding release.
 
-Anyone can build this system. Just stubbornly follow these steps:
+WROOM proxy traffic uses TCP port **6666**; the RP2354 path uses **6667**. **RP2354 serial proxy flashing requires a compatible custom serial bootloader.** The native ROM does not implement this project's raw TCP-to-UART payload protocol. A successful network transfer alone is not proof of successful DSP flashing; use the native supported flashing method when that bootloader is absent.
 
-### Step 1: Solder Hardware
-1. Order the PCB using the Gerber files in the `Gerber/` folder.
-2. Solder the SMD components (size 1206) first. Start with the flat components (resistors, capacitors) and work your way up to the larger chips.
-3. **IMPORTANT:** Solder the large ground pad (Exposed Pad / EP) on the bottom of the ESP32-WROOM to the PCB without fail! This is not only important for grounding but also acts as an essential heatsink. Without this connection, the chip will overheat.
+## Troubleshooting
 
-### 🛠️ Assembly Aid
-Here you can find the interactive Bill of Materials (iBOM) for the Insane Sound System:
-<a href="https://htmlpreview.github.io/?https://github.com/babeinlovexd/Insane-Sound-System/blob/main/BOM/PCB_insane%20sound%20system%20v5.1_rev0.html">👉 <b>Interactive Assembly Aid</b></a>
+- **Wrong firmware/update:** Confirm the 2.1 repository, target filename and current tool build; V5 binaries are not substitutes.
+- **DSP does not restart after proxy transfer:** Check the installed bootloader and use a matching local flashing method.
+- **Source switching or controls fail:** Check the separate I2S, metadata UART and DSP-control connections.
+- **Temperature/fault reports:** Compare YAML sensor type, address and physical components before changing protection settings.
 
-### Step 2: Prepare ESPHome (Mainboard S3)
-For security reasons, this project uses externalized passwords.
-1. Create a new file called `secrets.yaml` in your Home Assistant / ESPHome folder.
-2. Insert exactly this structure with your own, real data:
-   ```yaml
-   api_encryption_key: "YOUR_API_KEY"
-   ota_password: "YOUR_OTA_PASSWORD"
-   wifi_ssid: "YOUR_WIFI_NAME"
-   wifi_password: "YOUR_WIFI_PASSWORD"
-   ap_password: "YOUR_FALLBACK_HOTSPOT_PASSWORD"
-   web_server_username: "YOUR_WEB_SERVER_USERNAME"
-   web_server_password: "YOUR_WEB_SERVER_PASSWORD"
-   ```
-3. Upload the file `insane-sound-system-v5.yaml` from the `ESPHome/` folder to your ESPHome dashboard.
-4. **Activate LEDs and Front Panel (Packages):** In the `insane-sound-system-v5.yaml` file, near the top under `packages:`, you will find configuration blocks for different LED strips (WS2811, WS2814, WS2805) and the optional Front Panel.
-   * **LEDs:** Highlight the block corresponding to the LED type you are using and remove the hash (`#`) symbols at the beginning of the lines (Tip: Select the block and press `Ctrl` + `#`). **Only one** LED block can be active at a time!
-   * **Front Panel (Optional):** If you are using the front panel extension (OLED & Buttons), remove the hash symbols in the same way before `frontpanel:`, `url:` and `file:`.
-5. Connect the **ESP32-S3** to your computer via USB and flash it normally via the cable for the very first time.
+## License
 
-<img src="Images/1.svg" width="300" alt="Detailed View Bottom">
-
-## 🚀 The official InsaneFlasher Tool (All-in-One)
-
-No more complicated command lines! The Insane Sound System 2.1 now comes with its own, professional hub for **Windows, macOS, and Linux**.
-
-The **InsaneFlasher** is your central dashboard to control, monitor, and maintain your Insane Sound System. Thanks to ZeroConf technology, the tool automatically finds your Insane Sound System on the network.
-
-### ✨ Features of the Tool
-* **Live Telemetry Dashboard:** Monitor temperatures (incl. dynamic warning bars!), audio sources, Wi-Fi signal, and running Bluetooth metadata in real-time (1-second intervals).
-* **One-Click OTA Flashing:** Update the internal Bluetooth chip (WROOM) completely wirelessly. The main ESP32 (S3) acts as an invisible bridge (`socket://<IP>:8888`) and flashes the WROOM via its hardware pins - no USB cable required!
-* **Automatic Version Check:** The tool automatically compares the WROOM firmware of your box with GitHub and notifies you as soon as an update is available.
-* **Favorites Storage:** Save your fixed Insane Sound Systems to skip the network scan on the next start.
-* **Hardware Reset:** Force a clean reboot of the WROOM chip via remote maintenance in case the Bluetooth hangs up.
-
-### Step 3: Flash the Bluetooth Module (with the InsaneFlasher)
-As soon as your mainboard (S3) runs in Wi-Fi, we flash the Bluetooth chip (WROOM) wirelessly:
-
-**🪟 For Windows Users (Recommended):**
-1. Download the latest `InsaneFlasher.exe` from the `InsaneFlasher/Windows/` folder.
-2. Double-click on the `.exe` - the tool starts immediately (no installation required).
-
-**🍎/🐧 For macOS & Linux Users:**
-1. Make sure Python 3 is installed on your system, and download the source code `InsaneFlasher.py` from the `InsaneFlasher/Linux_Mac/` folder.
-2. Install the necessary packages in the terminal: `pip install customtkinter requests esptool zeroconf pillow packaging`
-3. Start the tool: `python3 InsaneFlasher.py`
-
-**The Flash Process:**
-Select your Insane Sound System in the tool and simply click on the large red button **"INSTALL UPDATE NOW"** (or similar depending on language). The tool automatically downloads the latest firmware, puts the chip into flash mode, installs the update, and restarts the Insane Sound System. Just sit back!
-
-**Congratulations! Your Insane Sound System 2.1 is now fully operational!**
-
-<img src="Images/4.svg" width="800" alt="Schematic">
+[CC BY-NC-SA 4.0](LICENSE). The existing project license applies; third-party components retain their own licenses.
 
 ---
 
-## ⚖️ License
-This entire project (hardware and software) is licensed under the [CC BY-NC-SA 4.0 License](https://creativecommons.org/licenses/by-nc-sa/4.0/).
-This means: Rebuilding and modifying for private purposes is expressly encouraged; any commercial use or sale is strictly prohibited!
+## Builds and releases
 
----
+Version: **0.1.6** ([VERSION](VERSION)). [GitHub Actions](.github/workflows/release.yml) checks each push and pull request. A tag matching `v` + `VERSION` publishes a release after all jobs succeed; manual runs provide build artifacts. [Downloads](https://github.com/babeinlovexd/Insane-Sound-System-2.1/releases).
 
-## ☕ Support this Project
-2.1 took an extreme amount of time, nerves, and coffee. If you like the system and would like to support my work, I'd be incredibly happy about a virtual coffee!
+ESPHome CI uses dummy credentials and does not flash devices. Configure your own secrets and pin assignments before deployment.
 
-<a href="https://www.paypal.me/babeinlovexd">
-  <img src="https://img.shields.io/badge/Donate-PayPal-blue.svg?style=for-the-badge&logo=paypal" alt="Donate with PayPal">
-</a>
+## Contributing
 
-Every cent flows directly into the development of 2.1 and new prototypes! 🚀
----
+Questions, bug reports and contributions are welcome. Include version, setup and reproduction steps in an [Issue](https://github.com/babeinlovexd/Insane-Sound-System-2.1/issues). Please discuss larger changes before a pull request.
 
-## 👨‍💻 Developed by
+Support this hobby project: [PayPal](https://www.paypal.me/babeinlovexd).
 
-| [<img src="https://avatars.githubusercontent.com/u/43302033?v=4" width="100"><br><sub>**Christopher**</sub>](https://github.com/babeinlovexd) |
-| :---: |
-
----
+[BxD / BabeinlovexD](https://github.com/babeinlovexd) · [Website](https://babeinlovexd.de/)
