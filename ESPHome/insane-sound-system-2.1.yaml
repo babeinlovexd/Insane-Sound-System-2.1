@@ -814,10 +814,11 @@ display:
     model: ST7789V
     rotation: 90
     dimensions:
-      width: 284
-      height: 80
-      offset_width: 18
-      offset_height: 82
+      # Native portrait coordinates; rotation gives 284 x 80 landscape.
+      width: 80
+      height: 284
+      offset_width: 82
+      offset_height: 18
     pages:
       - id: page1
         lambda: |-
