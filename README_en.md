@@ -44,6 +44,8 @@ pio run -d Firmware/WROOM32D -e esp32dev
 pio run -d Firmware/RP2354A -e rp2354
 ```
 
+The WROOM environment pins `espressif32@6.12.0` (Arduino 2.0.17) and ESP32-A2DP `v1.8.12` to match the project's legacy I2S interface.
+
 The S3 YAML is built with ESPHome separately. Outputs for the PlatformIO targets are under their respective `.pio/build/<environment>/` directories. Release binaries are target-specific, not interchangeable.
 
 ## InsaneFlasher & proxy prerequisites
