@@ -90,7 +90,7 @@ esphome:
   friendly_name: "Insane Sound System 2.1 (Master)"
   project:
     name: "babeinlovexd.insane_sound_system_2-1"
-    version: "0.1.0"
+    version: "0.1.6"
 
 esp32:
   board: esp32-s3-devkitc-1
